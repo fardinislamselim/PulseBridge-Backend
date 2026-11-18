@@ -1,0 +1,66 @@
+<%
+  var asnId = typeof assignmentId !== 'undefined' ? assignmentId : 'ASN-PENDING';
+  var timeVal = typeof scheduledTime !== 'undefined' ? scheduledTime : (typeof donationTime !== 'undefined' ? donationTime : 'As scheduled');
+  var btnUrl = typeof assignmentUrl !== 'undefined' ? assignmentUrl : (typeof actionUrl !== 'undefined' ? actionUrl : '#');
+  var unitsVal = typeof units !== 'undefined' ? units : 1;
+%>
+
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">
+  You Have Been Assigned to a Donation &#127973;
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Hello<%= typeof donorName !== 'undefined' && donorName ? ' ' + donorName : ' Donor' %>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  You have been assigned to fulfill a verified blood donation request on PulseBridge. Please review the details below:
+</p>
+
+<!-- Assignment card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 24px;">
+  <tr>
+    <td style="padding: 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280; width: 40%;">Assignment ID:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827; font-family: monospace;"><%= asnId %></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Blood Group:</td>
+          <td style="padding: 6px 0; font-size: 16px; font-weight: 800; color: #DC2626;"><%= bloodGroup %></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Units:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= unitsVal %> Unit(s)</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Hospital:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= hospitalName %></td>
+        </tr>
+        <% if (typeof hospitalAddress !== 'undefined' && hospitalAddress) { %>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Hospital Address:</td>
+          <td style="padding: 6px 0; font-size: 13px; color: #374151;"><%= hospitalAddress %></td>
+        </tr>
+        <% } %>
+        <% if (typeof contactPerson !== 'undefined' && contactPerson) { %>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Contact Person:</td>
+          <td style="padding: 6px 0; font-size: 13px; color: #374151;"><%= contactPerson %> (<%= contactNumber %>)</td>
+        </tr>
+        <% } %>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Scheduled Time:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= timeVal %></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<%- include('./partials/button', { label: 'View Assignment Details', url: btnUrl, color: '#DC2626' }) %>
+
+<p style="margin: 20px 0 0 0; font-size: 13px; line-height: 20px; color: #6B7280;">
+  Please confirm your availability as soon as possible so the hospital and patient's family can prepare accordingly.
+</p>

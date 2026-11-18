@@ -1,7 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
-import { ApiError } from '../utils/ApiError.js';
+import httpStatus from 'http-status';
+import { AppError } from '../utils/AppError.js';
 
 export const notFound = (req: Request, _res: Response, next: NextFunction): void => {
-  const error = ApiError.notFound(`Route not found: ${req.method} ${req.originalUrl}`);
+  const error = new AppError(
+    httpStatus.NOT_FOUND,
+    `Route not found: ${req.method} ${req.originalUrl}`
+  );
   next(error);
 };

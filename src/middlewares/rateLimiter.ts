@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import type { Request, Response } from 'express';
+import httpStatus from 'http-status';
 
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -7,10 +8,11 @@ export const globalRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req: Request, res: Response) => {
-    res.status(429).json({
+    res.status(httpStatus.TOO_MANY_REQUESTS).json({
       success: false,
+      statusCode: httpStatus.TOO_MANY_REQUESTS,
       message: 'Too many requests, please try again later',
-      errors: [],
+      error: { name: 'RateLimitError' },
     });
   },
 });

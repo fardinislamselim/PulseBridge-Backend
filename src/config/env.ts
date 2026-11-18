@@ -24,15 +24,52 @@ export const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
+  BACKEND_URL: z.string().default('http://localhost:5000'),
+  COOKIE_DOMAIN: z.string().optional().default(''),
+  GOOGLE_CLIENT_ID: z.string().optional().default(''),
+  EMAIL_HOST: z.string().optional().default(''),
+  EMAIL_PORT: coerceNumber(587),
+  EMAIL_USER: z.string().optional().default(''),
+  EMAIL_PASS: z.string().optional().default(''),
+  EMAIL_PASSWORD: z.string().optional().default(''),
+  EMAIL_FROM: z.string().optional().default(''),
+  EMAIL_FROM_NAME: z.string().optional().default('PulseBridge'),
+  SMTP_HOST: z.string().optional().default(''),
+  SMTP_PORT: z
+    .preprocess((val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      return val;
+    }, z.coerce.number().int().positive().optional())
+    .optional(),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASS: z.string().optional().default(''),
   ADMIN_NAME: z.string().optional().default('Admin User'),
   ADMIN_EMAIL: z.string().optional().default('admin@pulsebridge.com'),
   ADMIN_PASSWORD: z.string().optional().default('AdminPassword123!'),
+  OTP_LENGTH: coerceNumber(6),
+  OTP_EXPIRES_IN: coerceNumber(300),
+  OTP_RESEND_COOLDOWN: coerceNumber(60),
+  OTP_MAX_ATTEMPTS: coerceNumber(5),
+  OTP_HASH_SECRET: z
+    .string()
+    .optional()
+    .default('pulsebridge-default-otp-hash-secret-change-in-production'),
+  PASSWORD_RESET_TOKEN_EXPIRES_IN: coerceNumber(600),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 export const validateEnv = (configRecord: Record<string, unknown> = process.env): Env => {
-  const result = envSchema.safeParse(configRecord);
+  const mergedRecord = {
+    ...configRecord,
+    EMAIL_PASS:
+      configRecord.EMAIL_PASS ||
+      configRecord.EMAIL_PASSWORD ||
+      configRecord.SMTP_PASS ||
+      '',
+  };
+
+  const result = envSchema.safeParse(mergedRecord);
 
   if (!result.success) {
     const formattedErrors = result.error.issues
@@ -61,9 +98,28 @@ export const config = {
   jwt_access_expires_in: env.JWT_ACCESS_EXPIRES_IN,
   jwt_refresh_expires_in: env.JWT_REFRESH_EXPIRES_IN,
   frontend_url: env.FRONTEND_URL,
+  backend_url: env.BACKEND_URL,
+  cookie_domain: env.COOKIE_DOMAIN,
+  google_client_id: env.GOOGLE_CLIENT_ID,
+  email_host: env.EMAIL_HOST,
+  email_port: env.EMAIL_PORT,
+  email_user: env.EMAIL_USER,
+  email_pass: env.EMAIL_PASS,
+  email_password: env.EMAIL_PASS,
+  email_from: env.EMAIL_FROM || env.EMAIL_USER,
+  email_from_name: env.EMAIL_FROM_NAME,
+  EMAIL_USER: env.EMAIL_USER,
+  EMAIL_PASS: env.EMAIL_PASS,
+  EMAIL_FROM_NAME: env.EMAIL_FROM_NAME,
   admin_name: env.ADMIN_NAME,
   admin_email: env.ADMIN_EMAIL,
   admin_password: env.ADMIN_PASSWORD,
+  otp_length: env.OTP_LENGTH,
+  otp_expires_in: env.OTP_EXPIRES_IN,
+  otp_resend_cooldown: env.OTP_RESEND_COOLDOWN,
+  otp_max_attempts: env.OTP_MAX_ATTEMPTS,
+  otp_hash_secret: env.OTP_HASH_SECRET,
+  password_reset_token_expires_in: env.PASSWORD_RESET_TOKEN_EXPIRES_IN,
 };
 
 export default config;

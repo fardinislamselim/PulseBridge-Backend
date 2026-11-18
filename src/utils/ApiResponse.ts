@@ -1,46 +1,65 @@
 import type { Response } from 'express';
+import httpStatus from 'http-status';
 
-export interface IApiResponse<T = unknown> {
+export type TMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type TResponseData<T> = {
   success: boolean;
+  statusCode: number;
   message: string;
   data: T;
-}
+  meta?: TMeta;
+};
 
-export class ApiResponse<T = unknown> {
-  public readonly success: boolean = true;
-  public readonly message: string;
-  public readonly data: T;
-  public readonly statusCode: number;
+export const sendResponse = <T>(res: Response, data: TResponseData<T>): Response => {
+  return res.status(data.statusCode).json({
+    success: data.success,
+    statusCode: data.statusCode,
+    message: data.message,
+    data: data.data,
+    ...(data.meta ? { meta: data.meta } : {}),
+  });
+};
 
-  constructor(statusCode: number, message: string, data?: T) {
-    this.statusCode = statusCode;
-    this.message = message;
-    this.data = (data !== undefined ? data : {}) as T;
-  }
+export const sendSuccess = <T = unknown>(
+  res: Response,
+  message: string,
+  data?: T,
+  statusCode = httpStatus.OK,
+  meta?: TMeta
+): Response => {
+  return sendResponse(res, {
+    success: true,
+    statusCode,
+    message,
+    data: (data !== undefined ? data : {}) as T,
+    meta,
+  });
+};
 
-  public toJSON(): IApiResponse<T> {
-    return {
-      success: this.success,
-      message: this.message,
-      data: this.data,
-    };
-  }
+export const sendCreated = <T = unknown>(res: Response, message: string, data?: T): Response => {
+  return sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message,
+    data: (data !== undefined ? data : {}) as T,
+  });
+};
 
-  public send(res: Response): Response {
-    return res.status(this.statusCode).json(this.toJSON());
-  }
-
-  public static success<T = unknown>(
-    res: Response,
-    message: string,
-    data?: T,
-    statusCode = 200
-  ): Response {
-    const response = new ApiResponse<T>(statusCode, message, data);
-    return response.send(res);
-  }
-
-  public static created<T = unknown>(res: Response, message: string, data?: T): Response {
-    return this.success(res, message, data, 201);
-  }
-}
+export const formatResponse = <T = unknown>(
+  message: string,
+  data: T,
+  statusCode = httpStatus.OK,
+  meta?: TMeta
+): TResponseData<T> => ({
+  success: true,
+  statusCode,
+  message,
+  data,
+  ...(meta ? { meta } : {}),
+});

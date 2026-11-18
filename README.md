@@ -11,8 +11,10 @@ PulseBridge is a production-oriented RESTful API engineered for blood donation c
 - **Framework:** Express 5.x
 - **Database:** PostgreSQL with Prisma ORM 7.x (`@prisma/adapter-pg`)
 - **Cache / Store:** Redis via `redis` client
+- **Authentication:** JWT, bcrypt, Google OAuth 2.0 via `google-auth-library` (**No Passport**)
 - **Validation:** Zod
-- **Security:** Helmet, CORS, express-rate-limit, bcrypt, jsonwebtoken
+- **Security:** Helmet, CORS, express-rate-limit, HttpOnly cookies
+- **Status Codes & Response Formatting:** `http-status`, `sendResponse`, centralized `AppError`
 - **Testing:** Vitest & Supertest
 - **Formatting & Linting:** Prettier & ESLint
 
@@ -43,6 +45,7 @@ cp .env.example .env
 | `PORT` | Server listening port | `5000` |
 | `API_PREFIX` | Versioned API route prefix | `/api/v1` |
 | `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
+| `BACKEND_URL` | Backend server URL | `http://localhost:5000` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://USER:PASSWORD@localhost:5432/pulsebridge?schema=public` |
 | `REDIS_URL` | Redis connection URL | `redis://localhost:6379` |
 | `REDIS_HOST` | Redis server host | `localhost` |
@@ -53,6 +56,7 @@ cp .env.example .env
 | `JWT_REFRESH_SECRET` | Secret key for refresh token signing | *Required* |
 | `JWT_ACCESS_EXPIRES_IN` | Access token lifespan | `15m` |
 | `JWT_REFRESH_EXPIRES_IN` | Refresh token lifespan | `7d` |
+| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Client ID for Google Identity Services | *Optional in Dev* |
 
 ### 3. Installation
 
@@ -112,6 +116,59 @@ pnpm run db:studio
 
 ---
 
+## Response & Error Contract
+
+All API responses strictly follow the standardized format:
+
+### Success Response (`2xx`)
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": {},
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 100,
+    "totalPages": 10
+  }
+}
+```
+*(The `meta` object is included only when pagination is applicable).*
+
+### Error Response (`4xx`, `5xx`)
+```json
+{
+  "success": false,
+  "statusCode": 401,
+  "message": "You are not logged in. Please log in to access this resource.",
+  "error": {
+    "name": "AppError"
+  }
+}
+```
+
+---
+
+## Authentication Endpoints (`/api/v1/auth`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Public | Register with email, password, name, phone |
+| `POST` | `/api/v1/auth/login` | Public | Log in with email & password, sets HttpOnly cookies |
+| `POST` | `/api/v1/auth/google` | Public | Log in with Google ID token credential |
+| `POST` | `/api/v1/auth/refresh` | Public | Rotate refresh token and obtain new access token |
+| `POST` | `/api/v1/auth/logout` | Public | Invalidate current session and clear auth cookies |
+| `POST` | `/api/v1/auth/logout-all`| Authenticated | Invalidate all sessions for the authenticated user |
+| `GET` | `/api/v1/auth/me` | Authenticated | Retrieve current user profile |
+| `GET` | `/api/v1/auth/sessions` | Authenticated | View active refresh sessions for the current user |
+| `DELETE`| `/api/v1/auth/sessions/:id`| Authenticated | Revoke a specific active session |
+| `POST` | `/api/v1/auth/verify-email` | Public | Verify user email with token |
+| `POST` | `/api/v1/auth/resend-verification` | Public | Resend email verification link |
+
+---
+
 ## Available Scripts
 
 | Script | Command | Purpose |
@@ -135,67 +192,9 @@ pnpm run db:studio
 
 ---
 
-## API Health Check
-
-Verify that the API and connected infrastructure are healthy:
-
-```bash
-curl -X GET http://localhost:5000/api/v1/health
-```
-
-### Response Example (`200 OK`)
-
-```json
-{
-  "success": true,
-  "message": "PulseBridge API is healthy and operational",
-  "data": {
-    "status": "healthy",
-    "timestamp": "2026-11-18T12:00:00.000Z",
-    "application": "PulseBridge",
-    "services": {
-      "database": "connected",
-      "redis": "connected"
-    }
-  }
-}
-```
-
----
-
-## Folder Structure
-
-```
-pulsebridge-backend/
-├── docs/                   # Architecture, API spec, database & progress tracking
-│   ├── api-specification.md
-│   ├── architecture.md
-│   ├── database.md
-│   └── progress.md
-├── prisma/                 # Prisma configuration, schemas & migrations
-│   ├── migrations/         # PostgreSQL migration history
-│   ├── schema/             # Modular Prisma schemas
-│   └── seed.ts             # Safe development seed script
-├── src/
-│   ├── config/             # Environment, Database & Redis configurations
-│   ├── generated/          # Generated Prisma Client
-│   ├── middlewares/        # Error handler, 404, rate limiter, logger
-│   ├── modules/            # Domain modules (auth, users, donors, requests, payments, admin)
-│   ├── routes/             # API routing layer
-│   ├── types/              # TypeScript interfaces & types
-│   ├── utils/              # ApiResponse, ApiError, asyncHandler
-│   ├── app.ts              # Express application configuration
-│   └── server.ts           # Server bootstrap and lifecycle
-├── tests/                  # Automated integration, unit and database tests
-├── .env.example
-├── package.json
-└── tsconfig.json
-```
-
----
-
 ## Further Documentation
 
+- [Authentication Guide & Google OAuth Setup](docs/authentication.md)
 - [Database Architecture & ERD](docs/database.md)
 - [System Architecture Guide](docs/architecture.md)
 - [API Specification](docs/api-specification.md)

@@ -1,0 +1,36 @@
+<%
+  var expiryText = typeof expiresInHours !== 'undefined' ? expiresInHours + ' hours' : '24 hours';
+%>
+
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">
+  Verify Your PulseBridge Email &#9993;
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Hello<%= typeof name !== 'undefined' && name ? ' ' + name : '' %>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Thank you for registering on <strong>PulseBridge</strong>. To secure your account and activate features such as donor discovery and emergency requests, please verify your email address below.
+</p>
+
+<%- include('./partials/button', { label: 'Verify Email Address', url: verificationUrl, color: '#DC2626' }) %>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin: 24px 0 16px 0;">
+  <tr>
+    <td style="padding: 16px;">
+      <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #374151;">Button not working? Copy and paste this URL into your browser:</p>
+      <p style="margin: 0; font-size: 12px; line-height: 18px; word-break: break-all; color: #DC2626;">
+        <a href="<%= verificationUrl %>" style="color: #DC2626; text-decoration: underline;"><%= verificationUrl %></a>
+      </p>
+    </td>
+  </tr>
+</table>
+
+<p style="margin: 0 0 12px 0; font-size: 13px; color: #6B7280; line-height: 20px;">
+  &#9200; <strong>Note:</strong> This verification link will expire in <strong><%= expiryText %></strong>.
+</p>
+
+<p style="margin: 0; font-size: 13px; color: #9CA3AF; line-height: 20px;">
+  If you did not create an account on PulseBridge, you can safely disregard this email. No account changes will occur without confirmation.
+</p>

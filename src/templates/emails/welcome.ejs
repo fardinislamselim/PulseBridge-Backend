@@ -1,0 +1,30 @@
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">
+  Welcome to PulseBridge, <%= name %>! &#127881;
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Thank you for joining our community. <strong>PulseBridge</strong> is a dedicated life-saving platform engineered to connect people in critical need of blood with willing donors and emergency medical resources in real time.
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Whether you are here to donate, request blood for a loved one, or coordinate emergency assistance, your participation directly impacts lives across our community.
+</p>
+
+<!-- Feature callout card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #FEF2F2; border-left: 4px solid #DC2626; border-radius: 6px; margin: 20px 0;">
+  <tr>
+    <td style="padding: 16px;">
+      <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 700; color: #991B1B;">Next Step: Complete Your Profile</p>
+      <p style="margin: 0; font-size: 13px; line-height: 20px; color: #7F1D1D;">
+        Adding your blood group, district, and contact preferences helps our matching engine locate you swiftly during urgent emergencies.
+      </p>
+    </td>
+  </tr>
+</table>
+
+<%- include('./partials/button', { label: 'Complete Your Profile', url: typeof profileUrl !== 'undefined' ? profileUrl : (typeof dashboardUrl !== 'undefined' ? dashboardUrl : '#'), color: '#DC2626' }) %>
+
+<p style="margin: 24px 0 0 0; font-size: 14px; line-height: 22px; color: #4B5563;">
+  Warm regards,<br />
+  <strong>The PulseBridge Healthcare Team</strong>
+</p>

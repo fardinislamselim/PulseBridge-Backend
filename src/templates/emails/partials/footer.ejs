@@ -1,0 +1,22 @@
+<tr>
+  <td style="padding: 28px 24px 32px 24px; background-color: #F9FAFB; border-top: 1px solid #E5E7EB; text-align: center;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr>
+        <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #6B7280; line-height: 20px;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">PulseBridge Healthcare Platform</p>
+          <p style="margin: 0 0 12px 0;">Connecting blood donors with urgent recipients across the nation.</p>
+          <p style="margin: 0 0 16px 0; font-size: 12px;">
+            Need immediate help? Contact our emergency assistance desk at
+            <a href="mailto:<%= typeof supportEmail !== 'undefined' ? supportEmail : 'support@pulsebridge.com' %>" style="color: #DC2626; text-decoration: none; font-weight: 600;">
+              <%= typeof supportEmail !== 'undefined' ? supportEmail : 'support@pulsebridge.com' %>
+            </a>
+          </p>
+          <p style="margin: 0; font-size: 11px; color: #9CA3AF;">
+            &copy; <%= new Date().getFullYear() %> PulseBridge. All rights reserved.<br />
+            This is an automated operational notification. Please do not reply directly to this email.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>

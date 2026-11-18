@@ -1,0 +1,66 @@
+<%
+  var donId = typeof donationId !== 'undefined' ? donationId : 'DON-VERIFIED';
+  var donDate = typeof donationDate !== 'undefined' ? donationDate : 'Recently';
+  var certUrl = typeof certificateUrl !== 'undefined' ? certificateUrl : '#';
+  var unitsVal = typeof unitsDonated !== 'undefined' ? unitsDonated : 1;
+%>
+
+<div style="text-align: center; margin-bottom: 24px;">
+  <span style="display: inline-block; background-color: #DCFCE7; color: #16A34A; width: 64px; height: 64px; line-height: 64px; font-size: 32px; border-radius: 50%;">
+    &#10004;
+  </span>
+</div>
+
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.5px; text-align: center;">
+  Thank You for Saving Lives! &#10084;
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Dear <%= typeof donorName !== 'undefined' ? donorName : 'Hero Donor' %>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Your blood donation has been successfully recorded and verified by our medical coordination team. Your selfless contribution has provided direct hope and life-saving support to a patient in need.
+</p>
+
+<!-- Donation summary card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 24px;">
+  <tr>
+    <td style="padding: 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280; width: 40%;">Donation Reference:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827; font-family: monospace;"><%= donId %></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Blood Group:</td>
+          <td style="padding: 6px 0; font-size: 16px; font-weight: 800; color: #DC2626;"><%= bloodGroup %></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Units Donated:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= unitsVal %> Unit(s)</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Hospital / Center:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= hospitalName %></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Donation Date:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;"><%= donDate %></td>
+        </tr>
+        <% if (typeof nextEligibleDate !== 'undefined' && nextEligibleDate) { %>
+        <tr>
+          <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Next Eligible Date:</td>
+          <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #16A34A;"><%= nextEligibleDate %></td>
+        </tr>
+        <% } %>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<%- include('./partials/button', { label: 'Download Donor Certificate', url: certUrl, color: '#16A34A' }) %>
+
+<p style="margin: 20px 0 0 0; font-size: 13px; line-height: 20px; color: #6B7280; text-align: center;">
+  Please take good care of yourself today. Stay well-hydrated, rest, and know that you are a community hero!
+</p>

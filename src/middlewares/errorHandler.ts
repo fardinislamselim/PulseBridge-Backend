@@ -1,51 +1,98 @@
 import type { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
-import { ApiError } from '../utils/ApiError.js';
+import httpStatus from 'http-status';
+import { Prisma } from '../generated/prisma/client.js';
+import { AppError } from '../utils/AppError.js';
 import { env } from '../config/env.js';
 
 export const errorHandler: ErrorRequestHandler = (
-  err: Error | ApiError | ZodError | unknown,
+  err: unknown,
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction
 ): void => {
-  let statusCode = 500;
+  let statusCode: number = httpStatus.INTERNAL_SERVER_ERROR;
   let message = 'Internal Server Error';
-  let errors: unknown[] = [];
+  let error: Record<string, unknown> = { name: 'InternalServerError' };
+  let validationErrors: Array<{ field: string; message: string }> | undefined;
 
-  // Log error details for server diagnostics
   if (env.NODE_ENV !== 'test') {
     console.error(`[Error] ${req.method} ${req.originalUrl}:`, err);
   }
 
-  if (err instanceof ApiError) {
+  if (err instanceof AppError) {
     statusCode = err.statusCode;
     message = err.message;
-    errors = err.errors;
+    error = { name: 'AppError' };
   } else if (err instanceof ZodError) {
-    statusCode = 400;
-    message = 'Validation error';
-    errors = err.issues.map((issue) => ({
+    statusCode = httpStatus.BAD_REQUEST;
+    message = 'Request validation failed';
+    validationErrors = err.issues.map((issue) => ({
       field: issue.path.join('.'),
       message: issue.message,
     }));
-  } else if (err instanceof SyntaxError && 'status' in err && err.status === 400) {
-    statusCode = 400;
-    message = 'Invalid JSON payload received';
-    errors = [err.message];
-  } else if (err instanceof Error) {
-    // In development/test show actual error message if non-production
-    if (env.NODE_ENV === 'development') {
-      message = err.message;
+    error = {
+      name: 'ZodError',
+      issues: validationErrors,
+    };
+  } else if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      statusCode = httpStatus.CONFLICT;
+      message = 'A record with this unique value already exists';
+      error = {
+        name: 'PrismaClientKnownRequestError',
+        code: err.code,
+        target: err.meta?.target,
+      };
+    } else if (err.code === 'P2025') {
+      statusCode = httpStatus.NOT_FOUND;
+      message = 'Record not found';
+      error = {
+        name: 'PrismaClientKnownRequestError',
+        code: err.code,
+      };
+    } else if (err.code === 'P2003') {
+      statusCode = httpStatus.BAD_REQUEST;
+      message = 'Invalid reference identifier provided';
+      error = {
+        name: 'PrismaClientKnownRequestError',
+        code: err.code,
+        field: err.meta?.field_name,
+      };
     } else {
-      message = 'An unexpected internal server error occurred';
+      statusCode = httpStatus.BAD_REQUEST;
+      message = 'Database operation failed';
+      error = {
+        name: 'PrismaClientKnownRequestError',
+        code: err.code,
+      };
     }
+  } else if (
+    err instanceof SyntaxError &&
+    'status' in err &&
+    err.status === httpStatus.BAD_REQUEST
+  ) {
+    statusCode = httpStatus.BAD_REQUEST;
+    message = 'Invalid JSON payload received';
+    error = { name: 'SyntaxError', details: err.message };
+  } else if (err instanceof Error) {
+    statusCode = httpStatus.INTERNAL_SERVER_ERROR;
+    message = env.NODE_ENV === 'development' ? err.message : 'Internal Server Error';
+    error = { name: err.name || 'Error' };
   }
 
-  res.status(statusCode).json({
+  const responsePayload: Record<string, unknown> = {
     success: false,
+    statusCode,
     message,
-    errors,
-  });
+  };
+
+  if (validationErrors) {
+    responsePayload.errors = validationErrors;
+  }
+
+  responsePayload.error = error;
+
+  res.status(statusCode).json(responsePayload);
 };

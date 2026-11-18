@@ -1,0 +1,84 @@
+<%
+  var normalizedStatus = (typeof status !== 'undefined' ? status : 'ACTIVE').toUpperCase();
+  var isBlocked = normalizedStatus === 'BLOCKED' || normalizedStatus === 'SUSPENDED';
+  var isVerified = normalizedStatus === 'VERIFIED';
+  var isActive = normalizedStatus === 'ACTIVE';
+
+  var badgeBg = isBlocked ? '#FEE2E2' : (isVerified ? '#DCFCE7' : '#EFF6FF');
+  var badgeBorder = isBlocked ? '#F87171' : (isVerified ? '#86EFAC' : '#93C5FD');
+  var badgeText = isBlocked ? '#991B1B' : (isVerified ? '#166534' : '#1E40AF');
+  var headerTitle = isBlocked ? 'Account Notice: Access Restricted' : (isVerified ? 'Account Verified Successfully!' : 'Account Status Update');
+%>
+
+<div style="text-align: center; margin-bottom: 24px;">
+  <span style="display: inline-block; background-color: <%= badgeBg %>; border: 1px solid <%= badgeBorder %>; color: <%= badgeText %>; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; letter-spacing: 0.5px; text-transform: uppercase;">
+    <%= isBlocked ? '&#9888; Restricted' : (isVerified ? '&#10004; Verified' : '&#9432; ' + normalizedStatus) %>
+  </span>
+</div>
+
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: <%= isBlocked ? '#991B1B' : '#111827' %>; letter-spacing: -0.5px; text-align: center;">
+  <%= headerTitle %>
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Hello <strong><%= name %></strong>,
+</p>
+
+<% if (isBlocked) { %>
+  <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+    This is an official notice that your PulseBridge account status has been set to <strong><%= normalizedStatus %></strong>. As a result, your ability to request blood, accept donor requests, or access platform features has been temporarily suspended.
+  </p>
+<% } else if (isVerified) { %>
+  <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+    Great news! Your PulseBridge account has been verified and confirmed. You now have full access to our trusted blood donation and emergency network.
+  </p>
+<% } else { %>
+  <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+    Your PulseBridge account status has been updated to <strong><%= normalizedStatus %></strong>.
+  </p>
+<% } %>
+
+<!-- Status Details Card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin: 20px 0;">
+  <tr>
+    <td style="padding: 18px 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td style="padding-bottom: 10px; font-size: 13px; color: #6B7280; width: 40%;">Updated Status:</td>
+          <td style="padding-bottom: 10px; font-size: 14px; font-weight: 700; color: <%= badgeText %>;"><%= normalizedStatus %></td>
+        </tr>
+        <% if (typeof effectiveDate !== 'undefined' && effectiveDate) { %>
+        <tr>
+          <td style="padding-bottom: 10px; font-size: 13px; color: #6B7280;">Effective Date:</td>
+          <td style="padding-bottom: 10px; font-size: 14px; color: #1F2937;"><%= effectiveDate %></td>
+        </tr>
+        <% } %>
+        <% if (typeof reason !== 'undefined' && reason) { %>
+        <tr>
+          <td style="font-size: 13px; color: #6B7280; vertical-align: top;">Details / Reason:</td>
+          <td style="font-size: 14px; color: #1F2937; line-height: 20px;"><%= reason %></td>
+        </tr>
+        <% } %>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<% if (isBlocked) { %>
+  <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 22px; color: #4B5563;">
+    If you believe this action was taken in error or if you need to submit additional information to restore your account, please reach out to our security and support desk immediately.
+  </p>
+
+  <%- include('./partials/button', { label: 'Contact Support', url: typeof actionUrl !== 'undefined' ? actionUrl : 'mailto:support@pulsebridge.org', color: '#DC2626' }) %>
+<% } else { %>
+  <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 22px; color: #4B5563;">
+    You can log in to your dashboard at any time to view emergency alerts, update your donor availability, or manage your medical profile.
+  </p>
+
+  <%- include('./partials/button', { label: 'Go to Dashboard', url: typeof actionUrl !== 'undefined' ? actionUrl : '#', color: '#16A34A' }) %>
+<% } %>
+
+<p style="margin: 24px 0 0 0; font-size: 14px; line-height: 22px; color: #4B5563;">
+  Best regards,<br />
+  <strong>PulseBridge Compliance & Support Team</strong>
+</p>

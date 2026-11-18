@@ -3,30 +3,24 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { connectRedis, disconnectRedis } from './config/redis.js';
+import { printStartupBanner } from './utils/startup-logger.js';
+import { verifyEmailTransporter } from './utils/email-sender.js';
 
 let server: Server | null = null;
 
 export const startServer = async (): Promise<Server> => {
   try {
-    console.log(`[PulseBridge] Starting application in ${env.NODE_ENV} mode...`);
-
     // Verify infrastructure connections
-    const dbConnected = await connectDatabase();
-    if (!dbConnected) {
-      console.warn('[PulseBridge] Notice: Database connection was not established at boot.');
-    }
-
-    const redisConnected = await connectRedis();
-    if (!redisConnected) {
-      console.warn('[PulseBridge] Notice: Redis connection was not established at boot.');
-    }
+    const [dbConnected, redisConnected] = await Promise.all([connectDatabase(), connectRedis()]);
+    void verifyEmailTransporter();
 
     return new Promise((resolve) => {
       server = app.listen(env.PORT, () => {
-        console.log(`[PulseBridge] Server listening on port ${env.PORT}`);
-        console.log(
-          `[PulseBridge] Health endpoint ready at: http://localhost:${env.PORT}${env.API_PREFIX}/health`
-        );
+        printStartupBanner({
+          port: env.PORT,
+          dbConnected,
+          redisConnected,
+        });
         resolve(server!);
       });
     });

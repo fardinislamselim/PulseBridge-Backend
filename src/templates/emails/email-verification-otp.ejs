@@ -1,0 +1,57 @@
+<%
+  var displayName = typeof name !== 'undefined' && name ? name : 'Valued Member';
+  var expiryMinutes = typeof expiresInMinutes !== 'undefined' ? expiresInMinutes : 5;
+%>
+
+<div style="text-align: center; margin-bottom: 20px;">
+  <span style="display: inline-block; background-color: #FEE2E2; color: #DC2626; width: 56px; height: 56px; line-height: 56px; font-size: 28px; border-radius: 50%;">
+    &#128272;
+  </span>
+</div>
+
+<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.5px; text-align: center;">
+  Verify Your Email Address
+</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Hello <strong><%= displayName %></strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-size: 15px; line-height: 24px; color: #374151;">
+  Thank you for registering on <strong>PulseBridge</strong>. To complete your registration and activate your account, please enter the 6-digit verification code below:
+</p>
+
+<!-- OTP Display Card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #FEF2F2; border: 2px dashed #F87171; border-radius: 12px; margin: 24px 0;">
+  <tr>
+    <td align="center" style="padding: 24px 16px;">
+      <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 1.5px;">Your Verification Code</p>
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 800; color: #DC2626; letter-spacing: 10px; padding: 4px 0;">
+        <%= otp %>
+      </div>
+      <p style="margin: 8px 0 0 0; font-size: 13px; color: #7F1D1D;">
+        &#9200; Valid for <strong><%= expiryMinutes %> minutes</strong>
+      </p>
+    </td>
+  </tr>
+</table>
+
+<!-- Security Warning Box -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 6px; margin: 20px 0;">
+  <tr>
+    <td style="padding: 14px 16px;">
+      <p style="margin: 0; font-size: 13px; line-height: 20px; color: #92400E;">
+        &#9888; <strong>Security Notice:</strong> Never share this verification code with anyone. PulseBridge representatives will never ask you for your code via phone, chat, or social media.
+      </p>
+    </td>
+  </tr>
+</table>
+
+<p style="margin: 20px 0 0 0; font-size: 13px; line-height: 20px; color: #6B7280;">
+  If you did not initiate this registration request on PulseBridge, you can safely disregard this email. No account will be activated without this verification code.
+</p>
+
+<p style="margin: 24px 0 0 0; font-size: 14px; line-height: 22px; color: #4B5563;">
+  Warm regards,<br />
+  <strong>The PulseBridge Healthcare Team</strong>
+</p>
