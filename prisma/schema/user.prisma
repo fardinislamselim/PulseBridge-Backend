@@ -1,0 +1,25 @@
+model User {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  password      String?
+  phone         String?
+  role          UserRole   @default(USER)
+  status        UserStatus @default(ACTIVE)
+  emailVerified Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  donorProfile  DonorProfile?
+  bloodRequests BloodRequest[]
+  payments      Payment[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}

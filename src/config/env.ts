@@ -24,6 +24,9 @@ export const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
+  ADMIN_NAME: z.string().optional().default('Admin User'),
+  ADMIN_EMAIL: z.string().optional().default('admin@pulsebridge.com'),
+  ADMIN_PASSWORD: z.string().optional().default('AdminPassword123!'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -58,6 +61,9 @@ export const config = {
   jwt_access_expires_in: env.JWT_ACCESS_EXPIRES_IN,
   jwt_refresh_expires_in: env.JWT_REFRESH_EXPIRES_IN,
   frontend_url: env.FRONTEND_URL,
+  admin_name: env.ADMIN_NAME,
+  admin_email: env.ADMIN_EMAIL,
+  admin_password: env.ADMIN_PASSWORD,
 };
 
 export default config;

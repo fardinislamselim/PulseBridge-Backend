@@ -1,0 +1,21 @@
+model DonorAssignment {
+  id             String           @id @default(uuid())
+  requestId      String
+  donorProfileId String
+  status         AssignmentStatus @default(PENDING)
+  respondedAt    DateTime?
+  assignedAt     DateTime         @default(now())
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Relations
+  request      BloodRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  donorProfile DonorProfile @relation(fields: [donorProfileId], references: [id], onDelete: Restrict)
+  donation     Donation?
+
+  @@unique([requestId, donorProfileId])
+  @@index([requestId])
+  @@index([donorProfileId])
+  @@map("donor_assignments")
+}

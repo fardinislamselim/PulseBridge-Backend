@@ -2,14 +2,14 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { env } from './env.js';
 
-let prismaInstance: PrismaClient | null = null;
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 export const getPrismaClient = (): PrismaClient => {
-  if (!prismaInstance) {
+  if (!globalForPrisma.prisma) {
     const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
-    prismaInstance = new PrismaClient({ adapter });
+    globalForPrisma.prisma = new PrismaClient({ adapter });
   }
-  return prismaInstance;
+  return globalForPrisma.prisma;
 };
 
 export const prisma = getPrismaClient();
@@ -20,13 +20,13 @@ export const connectDatabase = async (): Promise<boolean> => {
     await Promise.race([
       client.$connect(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database connection timed out')), 2000)
+        setTimeout(() => reject(new Error('Database connection timed out')), 10000)
       ),
     ]);
     await Promise.race([
       client.$queryRaw`SELECT 1`,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database query timed out')), 2000)
+        setTimeout(() => reject(new Error('Database query timed out')), 10000)
       ),
     ]);
     console.log('[Database] PostgreSQL connection established successfully.');
@@ -41,9 +41,10 @@ export const connectDatabase = async (): Promise<boolean> => {
 };
 
 export const disconnectDatabase = async (): Promise<void> => {
-  if (prismaInstance) {
+  if (globalForPrisma.prisma) {
     try {
-      await prismaInstance.$disconnect();
+      await globalForPrisma.prisma.$disconnect();
+      globalForPrisma.prisma = undefined;
       console.log('[Database] PostgreSQL connection disconnected.');
     } catch (error) {
       console.error('[Database] Error while disconnecting PostgreSQL:', error);
@@ -57,7 +58,7 @@ export const checkDatabaseHealth = async (): Promise<boolean> => {
     await Promise.race([
       client.$queryRaw`SELECT 1`,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database check timed out')), 1500)
+        setTimeout(() => reject(new Error('Database check timed out')), 5000)
       ),
     ]);
     return true;

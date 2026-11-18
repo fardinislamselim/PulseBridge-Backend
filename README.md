@@ -23,8 +23,8 @@ PulseBridge is a production-oriented RESTful API engineered for blood donation c
 ### 1. Prerequisites
 
 - Node.js (v20+)
-- PostgreSQL instance
-- Redis server
+- PostgreSQL instance (v14+)
+- Redis server (v6+)
 - pnpm (or npm)
 
 ### 2. Environment Setup
@@ -43,7 +43,7 @@ cp .env.example .env
 | `PORT` | Server listening port | `5000` |
 | `API_PREFIX` | Versioned API route prefix | `/api/v1` |
 | `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
-| `DATABASE_URL` | PostgreSQL connection string | *Required* |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://USER:PASSWORD@localhost:5432/pulsebridge?schema=public` |
 | `REDIS_URL` | Redis connection URL | `redis://localhost:6379` |
 | `REDIS_HOST` | Redis server host | `localhost` |
 | `REDIS_PORT` | Redis server port | `6379` |
@@ -60,12 +60,37 @@ cp .env.example .env
 pnpm install
 ```
 
-### 4. Database Setup
+### 4. Database Setup & Migrations
 
-Generate the Prisma client:
+Validate and format schema:
 
 ```bash
-pnpm run prisma:generate
+pnpm run db:validate
+pnpm run db:format
+```
+
+Apply migrations:
+
+```bash
+pnpm run db:migrate:dev
+```
+
+Generate the typed Prisma Client:
+
+```bash
+pnpm run db:generate
+```
+
+Seed initial development data:
+
+```bash
+pnpm run db:seed
+```
+
+Launch Prisma Studio GUI:
+
+```bash
+pnpm run db:studio
 ```
 
 ### 5. Running the Application
@@ -92,15 +117,21 @@ pnpm run prisma:generate
 | Script | Command | Purpose |
 |---|---|---|
 | `pnpm run dev` | `tsx watch src/server.ts` | Starts development server with file watching |
-| `pnpm run build` | `tsc && tsc-alias` | Compiles TypeScript and resolves path aliases to `dist/` |
+| `pnpm run build` | `prisma generate && tsc && tsc-alias` | Generates client, compiles TypeScript, and resolves path aliases |
 | `pnpm run start` | `node dist/server.js` | Runs the compiled production server |
-| `pnpm run test` | `vitest run` | Executes the automated test suite |
+| `pnpm run test` | `vitest run` | Executes all test suites |
 | `pnpm run test:watch` | `vitest` | Runs tests in interactive watch mode |
 | `pnpm run type-check` | `tsc --noEmit` | Performs strict TypeScript type checks |
 | `pnpm run lint` | `tsc --noEmit && eslint . --no-error-on-unmatched-pattern` | Lints the codebase |
 | `pnpm run format` | `prettier --write "src/**/*.ts"` | Formats TypeScript source files |
 | `pnpm run format:check` | `prettier --check "src/**/*.ts"` | Validates Prettier formatting |
-| `pnpm run prisma:generate` | `prisma generate` | Generates the typed Prisma Client |
+| `pnpm run db:validate` | `prisma validate` | Validates Prisma schema syntax and relations |
+| `pnpm run db:format` | `prisma format` | Formats Prisma schema files |
+| `pnpm run db:generate` | `prisma generate` | Generates typed Prisma Client into `src/generated/prisma` |
+| `pnpm run db:migrate:dev` | `prisma migrate dev` | Creates and applies development migrations |
+| `pnpm run db:migrate:deploy` | `prisma migrate deploy` | Applies pending migrations in production |
+| `pnpm run db:seed` | `tsx prisma/seed.ts` | Runs the safe development seed script |
+| `pnpm run db:studio` | `prisma studio` | Opens Prisma Studio web interface |
 
 ---
 
@@ -136,18 +167,26 @@ curl -X GET http://localhost:5000/api/v1/health
 
 ```
 pulsebridge-backend/
-├── docs/                   # Architecture, API spec & progress tracking
-├── prisma/                 # Prisma database configuration & migrations
+├── docs/                   # Architecture, API spec, database & progress tracking
+│   ├── api-specification.md
+│   ├── architecture.md
+│   ├── database.md
+│   └── progress.md
+├── prisma/                 # Prisma configuration, schemas & migrations
+│   ├── migrations/         # PostgreSQL migration history
+│   ├── schema/             # Modular Prisma schemas
+│   └── seed.ts             # Safe development seed script
 ├── src/
 │   ├── config/             # Environment, Database & Redis configurations
+│   ├── generated/          # Generated Prisma Client
 │   ├── middlewares/        # Error handler, 404, rate limiter, logger
-│   ├── modules/            # Business domain modules (auth, users, donors, etc.)
+│   ├── modules/            # Domain modules (auth, users, donors, requests, payments, admin)
 │   ├── routes/             # API routing layer
 │   ├── types/              # TypeScript interfaces & types
 │   ├── utils/              # ApiResponse, ApiError, asyncHandler
 │   ├── app.ts              # Express application configuration
 │   └── server.ts           # Server bootstrap and lifecycle
-├── tests/                  # Automated integration and unit tests
+├── tests/                  # Automated integration, unit and database tests
 ├── .env.example
 ├── package.json
 └── tsconfig.json
@@ -157,6 +196,7 @@ pulsebridge-backend/
 
 ## Further Documentation
 
-- [Architecture Guide](docs/architecture.md)
+- [Database Architecture & ERD](docs/database.md)
+- [System Architecture Guide](docs/architecture.md)
 - [API Specification](docs/api-specification.md)
 - [Project Progress](docs/progress.md)
