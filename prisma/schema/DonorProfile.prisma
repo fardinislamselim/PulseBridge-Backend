@@ -1,20 +1,23 @@
 model DonorProfile {
-  id               String      @id @default(uuid())
-  userId           String      @unique
-  bloodGroup       BloodGroup?
-  dateOfBirth      DateTime?
-  gender           String?
-  address          String?     @default("")
-  city             String?     @default("")
-  district         String?     @default("")
-  latitude         Float?
-  longitude        Float?
-  isAvailable      Boolean     @default(true)
-  isVerified       Boolean     @default(false)
-  lastDonationDate DateTime?
-  eligibleAt       DateTime?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id                      String      @id @default(uuid())
+  userId                  String      @unique
+  bloodGroup              BloodGroup?
+  dateOfBirth             DateTime?
+  gender                  String?
+  address                 String?     @default("")
+  city                    String?     @default("")
+  district                String?     @default("")
+  area                    String?     @default("")
+  latitude                Float?
+  longitude               Float?
+  isAvailable             Boolean     @default(true)
+  isVerified              Boolean     @default(false)
+  hasMedicalRestriction   Boolean     @default(false)
+  medicalRestrictionReason String?
+  lastDonationDate        DateTime?
+  eligibleAt              DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 
   // Relations
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -24,6 +27,7 @@ model DonorProfile {
   @@index([bloodGroup])
   @@index([city])
   @@index([district])
+  @@index([area])
   @@index([isAvailable])
   @@index([eligibleAt])
   @@map("donor_profiles")

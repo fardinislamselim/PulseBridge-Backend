@@ -81,3 +81,44 @@ export const auth = (...requiredRoles: UserRole[]) => {
 
 export const authenticate = auth();
 export const authorize = (...roles: UserRole[]) => auth(...roles);
+
+export const optionalAuth = asyncHandler(
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const token = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN]
+      ? req.cookies[COOKIE_NAMES.ACCESS_TOKEN]
+      : req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.split(' ')[1]
+        : req.headers.authorization;
+
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const payload = verifyAccessToken(token);
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          status: true,
+          emailVerified: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      if (user && user.status === UserStatus.ACTIVE) {
+        req.user = user as AuthUser;
+      }
+    } catch {
+      // Ignore token verification errors for optional auth
+    }
+
+    next();
+  }
+);
+

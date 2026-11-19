@@ -16,6 +16,18 @@ import {
   updateUserStatusSchema,
   updateUserRoleSchema,
 } from '../users/user.validation.js';
+import {
+  getDonorsController,
+  getDonorByIdController,
+  adminVerifyDonorController,
+  adminRestrictDonorController,
+} from '../donors/donor.controller.js';
+import {
+  getDonorsQuerySchema,
+  donorIdParamSchema,
+  adminVerifyDonorSchema,
+  adminRestrictDonorSchema,
+} from '../donors/donor.validation.js';
 
 const router = Router();
 
@@ -55,6 +67,31 @@ router.patch(
   '/users/:userId/role',
   validateRequest(updateUserRoleSchema),
   updateUserRoleController
+);
+
+// Administrative Donor Management
+router.get(
+  '/donors',
+  validateRequest(getDonorsQuerySchema),
+  getDonorsController
+);
+
+router.get(
+  '/donors/:donorId',
+  validateRequest(donorIdParamSchema),
+  getDonorByIdController
+);
+
+router.patch(
+  '/donors/:donorId/verification',
+  validateRequest(adminVerifyDonorSchema),
+  adminVerifyDonorController
+);
+
+router.patch(
+  '/donors/:donorId/restrictions',
+  validateRequest(adminRestrictDonorSchema),
+  adminRestrictDonorController
 );
 
 export const adminRoutes = router;

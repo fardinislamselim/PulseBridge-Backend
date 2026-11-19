@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import httpStatus from 'http-status';
@@ -20,6 +20,20 @@ try {
 } catch {
   openApiDocument = {};
 }
+
+/**
+ * Returns latest parsed OpenAPI document from disk, ensuring live updates on reload.
+ */
+const getOpenApiDocument = (): Record<string, unknown> => {
+  try {
+    if (fs.existsSync(openApiYamlPath)) {
+      return (YAML.load(openApiYamlPath) as Record<string, unknown>) || openApiDocument || {};
+    }
+  } catch {
+    // fallback to initial document
+  }
+  return openApiDocument || {};
+};
 
 const swaggerOptions: swaggerUi.SwaggerUiOptions = {
   customSiteTitle: 'PulseBridge API Documentation',
@@ -54,7 +68,7 @@ router.get('/api/docs/postman-collection', servePostmanCollection);
 // 2. OpenAPI JSON at /api-docs.json & /api/docs.json
 const serveOpenApiJson = (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
-  return res.json(openApiDocument);
+  return res.json(getOpenApiDocument());
 };
 router.get('/api-docs.json', serveOpenApiJson);
 router.get('/api/docs.json', serveOpenApiJson);
@@ -71,8 +85,14 @@ const serveOpenApiYaml = (_req: Request, res: Response) => {
 router.get('/api-docs.yaml', serveOpenApiYaml);
 router.get('/api/docs/openapi.yaml', serveOpenApiYaml);
 
-// 4. Swagger UI at /api-docs and /api/docs
-router.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, swaggerOptions));
-router.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, swaggerOptions));
+// 4. Swagger UI at /api-docs and /api/docs (live document reloaded)
+router.use('/api-docs', swaggerUi.serve, (req: Request, res: Response, next: NextFunction) => {
+  const doc = getOpenApiDocument();
+  swaggerUi.setup(doc, swaggerOptions)(req, res, next);
+});
+router.use('/api/docs', swaggerUi.serve, (req: Request, res: Response, next: NextFunction) => {
+  const doc = getOpenApiDocument();
+  swaggerUi.setup(doc, swaggerOptions)(req, res, next);
+});
 
 export const docsRouter = router;
