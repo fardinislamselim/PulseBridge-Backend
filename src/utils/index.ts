@@ -6,3 +6,4 @@ export * from './jwt.js';
 export * from './cookie.js';
 export * from './email-renderer.js';
 export * from './email-sender.js';
+export * from './authorization.js';

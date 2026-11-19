@@ -1,10 +1,15 @@
-import type { UserRole, UserStatus } from '../../generated/prisma/enums.js';
+import type { UserRole, UserStatus, BloodGroup } from '../../generated/prisma/enums.js';
 
 export interface RegisterDTO {
   name: string;
   email: string;
   password: string;
   phone?: string;
+  role?: UserRole;
+  bloodGroup?: BloodGroup;
+  district?: string;
+  city?: string;
+  address?: string;
 }
 
 export interface LoginDTO {

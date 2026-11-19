@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { healthRoutes } from './health.route.js';
 import { authRoutes } from '../modules/auth/auth.route.js';
+import { userRoutes } from '../modules/users/user.route.js';
+import { adminRoutes } from '../modules/admin/admin.route.js';
 
 const router = Router();
 
@@ -10,11 +12,10 @@ router.use('/', healthRoutes);
 // Authentication & Identity
 router.use('/auth', authRoutes);
 
-// Future business modules will be registered here:
-// router.use('/users', userRoutes);
-// router.use('/donors', donorRoutes);
-// router.use('/requests', requestRoutes);
-// router.use('/payments', paymentRoutes);
-// router.use('/admin', adminRoutes);
+// User Profile & Management
+router.use('/users', userRoutes);
+
+// Administration & Analytics
+router.use('/admin', adminRoutes);
 
 export const appRouter = router;

@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
+import { env } from '../../config/env.js';
+import { UserRole } from '../../generated/prisma/enums.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendSuccess, sendCreated } from '../../utils/ApiResponse.js';
 import { setAuthCookies, clearAuthCookies, COOKIE_NAMES } from '../../utils/cookie.js';
@@ -55,6 +57,40 @@ export const loginController = asyncHandler(async (req: Request, res: Response) 
     user,
     accessToken,
     refreshToken,
+  });
+});
+
+export const googleAuthController = asyncHandler(async (req: Request, res: Response) => {
+  const credential = (req.query.credential || req.query.id_token || req.query.code || req.body?.credential) as
+    | string
+    | undefined;
+
+  if (credential) {
+    const meta = {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.socket.remoteAddress,
+    };
+
+    const { accessToken, refreshToken, user } = await googleLoginUser({ credential }, meta);
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return sendSuccess(res, 'Google authentication successful', {
+      user,
+      accessToken,
+      refreshToken,
+    });
+  }
+
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const redirectUri = `${env.BACKEND_URL}/api/v1/auth/google/callback`;
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=consent`;
+
+  return sendSuccess(res, 'Google OAuth initiation details', {
+    authUrl,
+    clientId,
+    defaultRole: UserRole.DONOR,
   });
 });
 

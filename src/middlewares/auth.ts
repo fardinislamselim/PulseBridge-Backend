@@ -33,13 +33,6 @@ export const auth = (...requiredRoles: UserRole[]) => {
       );
     }
 
-    if (requiredRoles.length && !requiredRoles.includes(payload.role)) {
-      throw new AppError(
-        httpStatus.FORBIDDEN,
-        "Forbidden. You don't have permission to access this resource."
-      );
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -72,6 +65,13 @@ export const auth = (...requiredRoles: UserRole[]) => {
 
     if (user.status !== UserStatus.ACTIVE) {
       throw new AppError(httpStatus.FORBIDDEN, 'Your account is currently inactive.');
+    }
+
+    if (requiredRoles.length && !requiredRoles.includes(user.role)) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        "Forbidden. You don't have permission to access this resource."
+      );
     }
 
     req.user = user as AuthUser;

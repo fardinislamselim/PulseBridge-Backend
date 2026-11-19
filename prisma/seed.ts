@@ -1,6 +1,6 @@
-import bcrypt from 'bcrypt';
 import { prisma, connectDatabase, disconnectDatabase } from '../src/config/database.js';
 import { env, config } from '../src/config/env.js';
+import { hashPassword } from '../src/utils/password.js';
 import {
   UserRole,
   UserStatus,
@@ -26,50 +26,81 @@ export const seedDatabase = async (): Promise<void> => {
   }
 
   try {
-    const saltRounds = 10;
-    const defaultPasswordHash = await bcrypt.hash(config.admin_password, saltRounds);
-    const demoUserPasswordHash = await bcrypt.hash('DemoPassword123!', saltRounds);
+    const seedAdminPassword =
+      process.env.SEED_ADMIN_PASSWORD ||
+      env.SEED_ADMIN_PASSWORD ||
+      config.admin_password ||
+      'AdminPassword123!';
+    const defaultAdminPasswordHash = await hashPassword(seedAdminPassword);
+    const superAdminPasswordHash = await hashPassword(config.admin_password || seedAdminPassword);
+    const demoUserPasswordHash = await hashPassword('DemoPassword123!');
 
-    // 1. Seed Super Admin User
-    const superAdmin = await prisma.user.upsert({
-      where: { email: config.admin_email },
-      update: {
-        name: config.admin_name,
-        role: UserRole.SUPER_ADMIN,
-        status: UserStatus.ACTIVE,
-        emailVerified: true,
-      },
-      create: {
-        name: config.admin_name,
-        email: config.admin_email,
-        password: defaultPasswordHash,
-        phone: '+8801700000001',
-        role: UserRole.SUPER_ADMIN,
-        status: UserStatus.ACTIVE,
-        emailVerified: true,
-      },
+    // 1. Seed Default Administrator (admin@pulsebridge.com)
+    // Safe idempotent upsert: never overwrite existing admin password on rerun
+    const defaultAdminEmail = 'admin@pulsebridge.com';
+    const existingDefaultAdmin = await prisma.user.findUnique({
+      where: { email: defaultAdminEmail },
     });
-    console.log(`[Seed] Super Admin user ensured: ${superAdmin.email}`);
 
-    // 2. Seed Admin Staff User
-    const staffAdmin = await prisma.user.upsert({
-      where: { email: 'staff.admin@pulsebridge.com' },
-      update: {
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-        emailVerified: true,
-      },
-      create: {
-        name: 'Staff Administrator',
-        email: 'staff.admin@pulsebridge.com',
-        password: demoUserPasswordHash,
-        phone: '+8801700000002',
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-        emailVerified: true,
-      },
+    let defaultAdmin;
+    if (existingDefaultAdmin) {
+      defaultAdmin = await prisma.user.update({
+        where: { id: existingDefaultAdmin.id },
+        data: {
+          role: UserRole.ADMIN,
+          status: UserStatus.ACTIVE,
+          emailVerified: true,
+          name: existingDefaultAdmin.name || 'PulseBridge Administrator',
+        },
+      });
+      console.log(`[Seed] Default Admin account verified (existing password preserved): ${defaultAdmin.email}`);
+    } else {
+      defaultAdmin = await prisma.user.create({
+        data: {
+          name: 'PulseBridge Administrator',
+          email: defaultAdminEmail,
+          password: defaultAdminPasswordHash,
+          phone: '+8801700000001',
+          role: UserRole.ADMIN,
+          status: UserStatus.ACTIVE,
+          emailVerified: true,
+        },
+      });
+      console.log(`[Seed] Default Admin account created: ${defaultAdmin.email}`);
+    }
+
+    // 2. Seed Super Administrator User
+    const superAdminEmail = 'superadmin@pulsebridge.com';
+    const existingSuperAdmin = await prisma.user.findUnique({
+      where: { email: superAdminEmail },
     });
-    console.log(`[Seed] Staff Admin user ensured: ${staffAdmin.email}`);
+
+    let superAdmin;
+    if (existingSuperAdmin) {
+      superAdmin = await prisma.user.update({
+        where: { id: existingSuperAdmin.id },
+        data: {
+          name: config.admin_name || existingSuperAdmin.name,
+          role: UserRole.SUPER_ADMIN,
+          status: UserStatus.ACTIVE,
+          emailVerified: true,
+        },
+      });
+      console.log(`[Seed] Super Admin user verified: ${superAdmin.email}`);
+    } else {
+      superAdmin = await prisma.user.create({
+        data: {
+          name: config.admin_name || 'System Super Admin',
+          email: superAdminEmail,
+          password: superAdminPasswordHash,
+          phone: '+8801700000000',
+          role: UserRole.SUPER_ADMIN,
+          status: UserStatus.ACTIVE,
+          emailVerified: true,
+        },
+      });
+      console.log(`[Seed] Super Admin user created: ${superAdmin.email}`);
+    }
 
     // 3. Seed Demo Donor User & DonorProfile
     const donorUser = await prisma.user.upsert({
@@ -97,6 +128,7 @@ export const seedDatabase = async (): Promise<void> => {
         city: 'Dhaka',
         district: 'Dhaka',
         isAvailable: true,
+        isVerified: false,
       },
       create: {
         userId: donorUser.id,
@@ -106,17 +138,18 @@ export const seedDatabase = async (): Promise<void> => {
         city: 'Dhaka',
         district: 'Dhaka',
         isAvailable: true,
+        isVerified: false,
         lastDonationDate: new Date('2026-08-15T00:00:00.000Z'),
         eligibleAt: new Date('2026-11-15T00:00:00.000Z'),
       },
     });
     console.log(`[Seed] Donor user and profile ensured: ${donorUser.email} (${donorProfile.bloodGroup})`);
 
-    // 4. Seed Demo Recipient User
-    const recipientUser = await prisma.user.upsert({
+    // 4. Seed Demo Requester User
+    const requesterUser = await prisma.user.upsert({
       where: { email: 'recipient.alice@pulsebridge.com' },
       update: {
-        role: UserRole.USER,
+        role: UserRole.REQUESTER,
         status: UserStatus.ACTIVE,
         emailVerified: true,
       },
@@ -125,17 +158,17 @@ export const seedDatabase = async (): Promise<void> => {
         email: 'recipient.alice@pulsebridge.com',
         password: demoUserPasswordHash,
         phone: '+8801722222222',
-        role: UserRole.USER,
+        role: UserRole.REQUESTER,
         status: UserStatus.ACTIVE,
         emailVerified: true,
       },
     });
-    console.log(`[Seed] Recipient user ensured: ${recipientUser.email}`);
+    console.log(`[Seed] Requester user ensured: ${requesterUser.email}`);
 
     // 5. Seed Demo Blood Request
     const existingRequest = await prisma.bloodRequest.findFirst({
       where: {
-        requesterId: recipientUser.id,
+        requesterId: requesterUser.id,
         patientName: 'Farhana Rahman',
         bloodGroup: BloodGroup.O_POSITIVE,
       },
@@ -151,7 +184,7 @@ export const seedDatabase = async (): Promise<void> => {
         })
       : await prisma.bloodRequest.create({
           data: {
-            requesterId: recipientUser.id,
+            requesterId: requesterUser.id,
             patientName: 'Farhana Rahman',
             bloodGroup: BloodGroup.O_POSITIVE,
             unitsRequired: 2,

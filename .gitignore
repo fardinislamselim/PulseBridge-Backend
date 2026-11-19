@@ -158,9 +158,9 @@ vite.config.ts.timestamp-*
 
 
 Agent.md
-docs/*
 
 # Prisma generated client
 generated/
 
+docs/
 tests/

@@ -4,6 +4,7 @@ import httpStatus from 'http-status';
 import {
   registerController,
   loginController,
+  googleAuthController,
   googleLoginController,
   refreshTokenController,
   logoutController,
@@ -17,7 +18,7 @@ import {
   verifyResetOtpController,
   resetPasswordController,
 } from './auth.controller.js';
-import { auth } from '../../middlewares/auth.js';
+import { authenticate } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validateRequest.js';
 import {
   registerSchema,
@@ -86,6 +87,7 @@ const forgotPasswordLimiter = rateLimit({
 // Public Authentication Endpoints
 router.post('/register', authRateLimiter, validateRequest(registerSchema), registerController);
 router.post('/login', authRateLimiter, validateRequest(loginSchema), loginController);
+router.get('/google', authRateLimiter, googleAuthController);
 router.post('/google', authRateLimiter, validateRequest(googleLoginSchema), googleLoginController);
 router.post('/refresh', authRateLimiter, validateRequest(refreshTokenSchema), refreshTokenController);
 router.post('/logout', logoutController);
@@ -131,12 +133,12 @@ router.post(
 );
 
 // Authenticated User & Session Endpoints
-router.get('/me', auth(), getMeController);
-router.post('/logout-all', auth(), logoutAllSessionsController);
-router.get('/sessions', auth(), getSessionsController);
+router.get('/me', authenticate, getMeController);
+router.post('/logout-all', authenticate, logoutAllSessionsController);
+router.get('/sessions', authenticate, getSessionsController);
 router.delete(
   '/sessions/:id',
-  auth(),
+  authenticate,
   validateRequest(revokeSessionSchema),
   revokeSessionController
 );

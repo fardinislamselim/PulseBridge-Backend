@@ -40,10 +40,26 @@ import type {
 const googleOAuthClient = new OAuth2Client(env.GOOGLE_CLIENT_ID || undefined);
 
 export const registerUser = async (data: RegisterDTO): Promise<RegisterResult> => {
+  // Explicit server-side defense against elevated role tampering
+  const submittedRole = data.role as string | undefined;
+  if (
+    submittedRole === UserRole.ADMIN ||
+    submittedRole === UserRole.SUPER_ADMIN ||
+    submittedRole === 'ADMIN' ||
+    submittedRole === 'SUPER_ADMIN'
+  ) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Public registration for administrative accounts is strictly prohibited.'
+    );
+  }
+
+  const assignedRole = data.role === UserRole.DONOR ? UserRole.DONOR : UserRole.REQUESTER;
   const normalizedEmail = data.email.trim().toLowerCase();
 
   const existingUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
+    include: { donorProfile: true },
   });
 
   if (existingUser) {
@@ -54,7 +70,7 @@ export const registerUser = async (data: RegisterDTO): Promise<RegisterResult> =
       );
     }
 
-    if (existingUser.role !== UserRole.USER) {
+    if (existingUser.role === UserRole.ADMIN || existingUser.role === UserRole.SUPER_ADMIN) {
       throw new AppError(httpStatus.FORBIDDEN, 'Privileged accounts cannot be re-registered.');
     }
 
@@ -67,13 +83,41 @@ export const registerUser = async (data: RegisterDTO): Promise<RegisterResult> =
 
     const hashedPassword = await hashPassword(data.password);
 
-    await prisma.user.update({
-      where: { id: existingUser.id },
-      data: {
-        name: data.name.trim(),
-        password: hashedPassword,
-        phone: data.phone?.trim() || existingUser.phone,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: existingUser.id },
+        data: {
+          name: data.name.trim(),
+          password: hashedPassword,
+          phone: data.phone?.trim() || existingUser.phone,
+          role: assignedRole,
+        },
+      });
+
+      if (assignedRole === UserRole.DONOR && data.bloodGroup && data.district) {
+        await tx.donorProfile.upsert({
+          where: { userId: existingUser.id },
+          update: {
+            bloodGroup: data.bloodGroup,
+            district: data.district.trim(),
+            city: data.city?.trim() || data.district.trim(),
+            address: data.address?.trim() || data.district.trim(),
+            isAvailable: true,
+            lastDonationDate: null,
+            isVerified: false,
+          },
+          create: {
+            userId: existingUser.id,
+            bloodGroup: data.bloodGroup,
+            district: data.district.trim(),
+            city: data.city?.trim() || data.district.trim(),
+            address: data.address?.trim() || data.district.trim(),
+            isAvailable: true,
+            lastDonationDate: null,
+            isVerified: false,
+          },
+        });
+      }
     });
 
     const { otp } = await createAndStoreOtp(normalizedEmail, 'email-verification', false);
@@ -114,16 +158,35 @@ export const registerUser = async (data: RegisterDTO): Promise<RegisterResult> =
 
   const hashedPassword = await hashPassword(data.password);
 
-  const user = await prisma.user.create({
-    data: {
-      name: data.name.trim(),
-      email: normalizedEmail,
-      password: hashedPassword,
-      phone: data.phone?.trim() || null,
-      role: UserRole.USER,
-      status: UserStatus.ACTIVE,
-      emailVerified: false,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const createdUser = await tx.user.create({
+      data: {
+        name: data.name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        phone: data.phone?.trim() || null,
+        role: assignedRole,
+        status: UserStatus.ACTIVE,
+        emailVerified: false,
+      },
+    });
+
+    if (assignedRole === UserRole.DONOR && data.bloodGroup && data.district) {
+      await tx.donorProfile.create({
+        data: {
+          userId: createdUser.id,
+          bloodGroup: data.bloodGroup,
+          district: data.district.trim(),
+          city: data.city?.trim() || data.district.trim(),
+          address: data.address?.trim() || data.district.trim(),
+          isAvailable: true,
+          lastDonationDate: null,
+          isVerified: false,
+        },
+      });
+    }
+
+    return createdUser;
   });
 
   const { otp } = await createAndStoreOtp(normalizedEmail, 'email-verification', false);
@@ -306,15 +369,22 @@ export const googleLoginUser = async (
       return existingUser;
     }
 
-    // 3. Create new user and OAuth account
+    // 3. Create new user with default DONOR role, default donorProfile, and OAuth account
     return tx.user.create({
       data: {
         name: payload.name || 'Google User',
         email: normalizedEmail,
         password: null,
-        role: UserRole.USER,
+        role: UserRole.DONOR, // Default Google account role
         status: UserStatus.ACTIVE,
         emailVerified: true,
+        donorProfile: {
+          create: {
+            isAvailable: true,
+            lastDonationDate: null,
+            isVerified: false,
+          },
+        },
         oauthAccounts: {
           create: {
             provider: 'google',

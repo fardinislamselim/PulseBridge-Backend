@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import httpStatus from 'http-status';
@@ -31,8 +31,8 @@ const swaggerOptions: swaggerUi.SwaggerUiOptions = {
   },
 };
 
-// 1. Downloadable Postman collection at /api-docs/postman-collection (must precede /api-docs prefix)
-router.get('/api-docs/postman-collection', (_req, res) => {
+// 1. Downloadable Postman collection at /api-docs/postman-collection & /api/docs/postman-collection
+const servePostmanCollection = (_req: Request, res: Response) => {
   if (fs.existsSync(postmanCollectionPath)) {
     res.setHeader(
       'Content-Disposition',
@@ -47,25 +47,32 @@ router.get('/api-docs/postman-collection', (_req, res) => {
     statusCode: httpStatus.NOT_FOUND,
     message: 'Postman collection file not found',
   });
-});
+};
+router.get('/api-docs/postman-collection', servePostmanCollection);
+router.get('/api/docs/postman-collection', servePostmanCollection);
 
-// 2. OpenAPI JSON at /api-docs.json
-router.get('/api-docs.json', (_req, res) => {
+// 2. OpenAPI JSON at /api-docs.json & /api/docs.json
+const serveOpenApiJson = (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
   return res.json(openApiDocument);
-});
+};
+router.get('/api-docs.json', serveOpenApiJson);
+router.get('/api/docs.json', serveOpenApiJson);
 
-// 3. OpenAPI YAML at /api-docs.yaml
-router.get('/api-docs.yaml', (_req, res) => {
+// 3. OpenAPI YAML at /api-docs.yaml & /api/docs/openapi.yaml
+const serveOpenApiYaml = (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/yaml');
   if (fs.existsSync(openApiYamlPath)) {
     const yamlContent = fs.readFileSync(openApiYamlPath, 'utf8');
     return res.send(yamlContent);
   }
   return res.status(httpStatus.NOT_FOUND).send('# OpenAPI specification not found');
-});
+};
+router.get('/api-docs.yaml', serveOpenApiYaml);
+router.get('/api/docs/openapi.yaml', serveOpenApiYaml);
 
-// 4. Swagger UI at /api-docs
+// 4. Swagger UI at /api-docs and /api/docs
 router.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, swaggerOptions));
+router.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, swaggerOptions));
 
 export const docsRouter = router;

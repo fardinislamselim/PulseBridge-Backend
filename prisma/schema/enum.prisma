@@ -4,6 +4,7 @@
 
 enum UserRole {
   USER
+  REQUESTER
   DONOR
   ADMIN
   SUPER_ADMIN
