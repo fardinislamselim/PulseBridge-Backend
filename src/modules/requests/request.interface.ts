@@ -53,10 +53,21 @@ export interface UpdateBloodRequestDTO {
 
 export interface CancelBloodRequestDTO {
   cancellationReason?: string;
+  reason?: string;
 }
 
 export interface RejectBloodRequestDTO {
-  rejectionReason: string;
+  rejectionReason?: string;
+  reason?: string;
+}
+
+export interface UpdateUrgencyDTO {
+  urgency: RequestUrgency;
+  reason: string;
+}
+
+export interface ExpireRequestDTO {
+  reason?: string;
 }
 
 export interface GetBloodRequestsQueryDTO {
@@ -73,6 +84,14 @@ export interface GetBloodRequestsQueryDTO {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+}
+
+export interface AdminGetBloodRequestsQueryDTO extends GetBloodRequestsQueryDTO {
+  requesterId?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  neededFrom?: string;
+  neededTo?: string;
 }
 
 export interface RequesterSummary {
@@ -99,6 +118,8 @@ export interface BloodRequestResponse {
   bloodGroup: BloodGroup;
   unitsNeeded: number;
   unitsRequired: number;
+  fulfilledUnits: number;
+  remainingUnits: number;
   hospitalName: string;
   hospitalAddress: string;
   district: string;
@@ -116,6 +137,11 @@ export interface BloodRequestResponse {
   details: string | null;
   rejectionReason: string | null;
   cancellationReason: string | null;
+  approvedBy: string | null;
+  approvedAt: Date | null;
+  rejectedBy: string | null;
+  rejectedAt: Date | null;
+  expiredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   requester?: RequesterSummary;
@@ -128,6 +154,8 @@ export interface PublicBloodRequestSummary {
   bloodGroup: BloodGroup;
   unitsNeeded: number;
   unitsRequired: number;
+  fulfilledUnits: number;
+  remainingUnits: number;
   hospitalName: string;
   hospitalAddress: string;
   district: string;
@@ -138,5 +166,37 @@ export interface PublicBloodRequestSummary {
   urgency: RequestUrgency;
   status: RequestStatus;
   createdAt: Date;
-  // Patient contact details and exact coordinates are strictly masked
+  // Patient contact details and exact coordinates are strictly masked for public callers
+}
+
+export interface BloodRequestHistoryResponse {
+  id: string;
+  bloodRequestId: string;
+  actorId: string | null;
+  action: string;
+  previousStatus: string | null;
+  newStatus: string | null;
+  previousUrgency: string | null;
+  newUrgency: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+  actor?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+}
+
+export interface AdminBloodRequestDetailResponse extends BloodRequestResponse {
+  assignmentSummary: {
+    total: number;
+    pending: number;
+    accepted: number;
+    rejected: number;
+    completed: number;
+    cancelled: number;
+  };
+  history?: BloodRequestHistoryResponse[];
 }

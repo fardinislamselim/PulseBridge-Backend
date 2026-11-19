@@ -28,6 +28,21 @@ import {
   adminVerifyDonorSchema,
   adminRestrictDonorSchema,
 } from '../donors/donor.validation.js';
+import {
+  getAdminBloodRequestsController,
+  getAdminBloodRequestByIdController,
+  approveBloodRequestController,
+  rejectBloodRequestController,
+  updateBloodRequestUrgencyController,
+  expireBloodRequestController,
+} from '../requests/request.controller.js';
+import {
+  adminGetBloodRequestsQuerySchema,
+  requestIdParamSchema,
+  rejectBloodRequestSchema,
+  updateUrgencySchema,
+  expireBloodRequestSchema,
+} from '../requests/request.validation.js';
 
 const router = Router();
 
@@ -92,6 +107,52 @@ router.patch(
   '/donors/:donorId/restrictions',
   validateRequest(adminRestrictDonorSchema),
   adminRestrictDonorController
+);
+
+// Administrative Blood Request Management
+router.get(
+  '/blood-requests',
+  validateRequest(adminGetBloodRequestsQuerySchema),
+  getAdminBloodRequestsController
+);
+
+router.get(
+  '/blood-requests/:requestId',
+  validateRequest(requestIdParamSchema),
+  getAdminBloodRequestByIdController
+);
+
+router.patch(
+  '/blood-requests/:requestId/approve',
+  validateRequest(requestIdParamSchema),
+  approveBloodRequestController
+);
+
+router.patch(
+  '/blood-requests/:requestId/reject',
+  validateRequest({
+    params: requestIdParamSchema.shape.params,
+    body: rejectBloodRequestSchema,
+  }),
+  rejectBloodRequestController
+);
+
+router.patch(
+  '/blood-requests/:requestId/urgency',
+  validateRequest({
+    params: requestIdParamSchema.shape.params,
+    body: updateUrgencySchema,
+  }),
+  updateBloodRequestUrgencyController
+);
+
+router.patch(
+  '/blood-requests/:requestId/expire',
+  validateRequest({
+    params: requestIdParamSchema.shape.params,
+    body: expireBloodRequestSchema,
+  }),
+  expireBloodRequestController
 );
 
 export const adminRoutes = router;

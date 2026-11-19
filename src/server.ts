@@ -5,6 +5,10 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { connectRedis, disconnectRedis } from './config/redis.js';
 import { printStartupBanner } from './utils/startup-logger.js';
 import { verifyEmailTransporter } from './utils/email-sender.js';
+import {
+  startBloodRequestExpirationCron,
+  stopBloodRequestExpirationCron,
+} from './modules/requests/request-expiration.service.js';
 
 let server: Server | null = null;
 
@@ -21,6 +25,7 @@ export const startServer = async (): Promise<Server> => {
           dbConnected,
           redisConnected,
         });
+        startBloodRequestExpirationCron();
         resolve(server!);
       });
     });
@@ -32,6 +37,8 @@ export const startServer = async (): Promise<Server> => {
 
 export const gracefulShutdown = async (signal: string): Promise<void> => {
   console.log(`[PulseBridge] Received ${signal}. Commencing graceful shutdown...`);
+
+  stopBloodRequestExpirationCron();
 
   if (server) {
     server.close(() => {

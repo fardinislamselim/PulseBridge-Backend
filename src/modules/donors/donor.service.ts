@@ -34,6 +34,7 @@ import {
   toPublicDonorSummary,
   toFullDonorProfile,
 } from './donor.utils.js';
+import { updateRequestFulfillment } from '../requests/request.service.js';
 
 const donorIncludeRelations = {
   user: {
@@ -625,6 +626,9 @@ export const completeDonation = async (
         },
       });
     }
+
+    // Update blood request fulfillment status transactionally
+    await updateRequestFulfillment(donation.bloodRequestId, tx);
 
     return updatedDonation;
   });

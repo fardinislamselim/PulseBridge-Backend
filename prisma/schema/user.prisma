@@ -17,6 +17,7 @@ model User {
   payments                Payment[]
   notifications           Notification[]
   auditLogs               AuditLog[]
+  requestHistories        BloodRequestHistory[]
   oauthAccounts           OAuthAccount[]
   refreshSessions         RefreshSession[]
   emailVerificationTokens EmailVerificationToken[]

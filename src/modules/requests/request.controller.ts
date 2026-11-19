@@ -11,7 +11,16 @@ import {
   cancelBloodRequest,
   approveBloodRequest,
   rejectBloodRequest,
+  updateBloodRequestUrgency,
+  expireBloodRequest,
+  getBloodRequestHistory,
+  getAdminBloodRequests,
+  getAdminBloodRequestById,
 } from './request.service.js';
+import type {
+  GetBloodRequestsQueryDTO,
+  AdminGetBloodRequestsQueryDTO,
+} from './request.interface.js';
 
 export const createBloodRequestController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -22,8 +31,8 @@ export const createBloodRequestController = asyncHandler(
 
 export const getBloodRequestsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as Parameters<typeof getBloodRequests>[0];
-    const result = await getBloodRequests(query, req.user);
+    const query = req.query as unknown as GetBloodRequestsQueryDTO;
+    const result = await getBloodRequests(query);
     return sendSuccess(
       res,
       'Blood requests retrieved successfully',
@@ -36,7 +45,7 @@ export const getBloodRequestsController = asyncHandler(
 
 export const getMyBloodRequestsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as Parameters<typeof getMyBloodRequests>[1];
+    const query = req.query as unknown as GetBloodRequestsQueryDTO;
     const result = await getMyBloodRequests(req.user!.id, query);
     return sendSuccess(
       res,
@@ -73,9 +82,10 @@ export const cancelBloodRequestController = asyncHandler(
     const requestId = Array.isArray(req.params.requestId)
       ? req.params.requestId[0]
       : req.params.requestId;
+    const cancellationReason = req.body?.cancellationReason || req.body?.reason;
     const result = await cancelBloodRequest(
       requestId,
-      req.body?.cancellationReason,
+      cancellationReason,
       req.user!
     );
     return sendSuccess(res, 'Blood request cancelled successfully', result);
@@ -97,11 +107,66 @@ export const rejectBloodRequestController = asyncHandler(
     const requestId = Array.isArray(req.params.requestId)
       ? req.params.requestId[0]
       : req.params.requestId;
+    const rejectionReason = req.body?.rejectionReason || req.body?.reason || 'Administrative rejection';
     const result = await rejectBloodRequest(
       requestId,
-      req.body.rejectionReason,
+      rejectionReason,
       req.user!
     );
     return sendSuccess(res, 'Blood request rejected successfully', result);
+  }
+);
+
+export const updateBloodRequestUrgencyController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const requestId = Array.isArray(req.params.requestId)
+      ? req.params.requestId[0]
+      : req.params.requestId;
+    const result = await updateBloodRequestUrgency(requestId, req.body, req.user!);
+    return sendSuccess(res, 'Blood request urgency updated successfully', result);
+  }
+);
+
+export const expireBloodRequestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const requestId = Array.isArray(req.params.requestId)
+      ? req.params.requestId[0]
+      : req.params.requestId;
+    const result = await expireBloodRequest(requestId, req.user!, req.body?.reason);
+    return sendSuccess(res, 'Blood request expired successfully', result);
+  }
+);
+
+export const getBloodRequestHistoryController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const requestId = Array.isArray(req.params.requestId)
+      ? req.params.requestId[0]
+      : req.params.requestId;
+    const result = await getBloodRequestHistory(requestId, req.user!);
+    return sendSuccess(res, 'Blood request lifecycle history retrieved successfully', result);
+  }
+);
+
+export const getAdminBloodRequestsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as unknown as AdminGetBloodRequestsQueryDTO;
+    const result = await getAdminBloodRequests(query);
+    return sendSuccess(
+      res,
+      'Administrative blood requests retrieved successfully',
+      result.data,
+      httpStatus.OK,
+      result.meta
+    );
+  }
+);
+
+export const getAdminBloodRequestByIdController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const requestId = Array.isArray(req.params.requestId)
+      ? req.params.requestId[0]
+      : req.params.requestId;
+    const result = await getAdminBloodRequestById(requestId);
+    return sendSuccess(res, 'Administrative blood request details retrieved successfully', result);
   }
 );

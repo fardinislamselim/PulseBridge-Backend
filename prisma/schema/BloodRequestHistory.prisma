@@ -1,0 +1,22 @@
+model BloodRequestHistory {
+  id              String   @id @default(uuid())
+  bloodRequestId  String
+  actorId         String?
+  action          String
+  previousStatus  String?
+  newStatus       String?
+  previousUrgency String?
+  newUrgency      String?
+  reason          String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  bloodRequest BloodRequest @relation(fields: [bloodRequestId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([bloodRequestId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("blood_request_histories")
+}

@@ -11,12 +11,17 @@ import {
   cancelBloodRequestController,
   approveBloodRequestController,
   rejectBloodRequestController,
+  updateBloodRequestUrgencyController,
+  expireBloodRequestController,
+  getBloodRequestHistoryController,
 } from './request.controller.js';
 import {
   createBloodRequestSchema,
   updateBloodRequestSchema,
   cancelBloodRequestSchema,
   rejectBloodRequestSchema,
+  updateUrgencySchema,
+  expireBloodRequestSchema,
   requestIdParamSchema,
   getBloodRequestsQuerySchema,
 } from './request.validation.js';
@@ -47,7 +52,15 @@ router.get(
   getMyBloodRequestsController
 );
 
-// 4. Get single blood request details
+// 4. Get request lifecycle history (Owner requester, ADMIN, SUPER_ADMIN)
+router.get(
+  '/:requestId/history',
+  authenticate,
+  validateRequest(requestIdParamSchema),
+  getBloodRequestHistoryController
+);
+
+// 5. Get single blood request details
 router.get(
   '/:requestId',
   optionalAuth,
@@ -55,7 +68,7 @@ router.get(
   getBloodRequestByIdController
 );
 
-// 5. Update blood request
+// 6. Update blood request (Owner requester or ADMIN)
 router.patch(
   '/:requestId',
   authenticate,
@@ -66,7 +79,7 @@ router.patch(
   updateBloodRequestController
 );
 
-// 6. Cancel blood request
+// 7. Cancel blood request (Owner requester or ADMIN)
 router.patch(
   '/:requestId/cancel',
   authenticate,
@@ -77,7 +90,7 @@ router.patch(
   cancelBloodRequestController
 );
 
-// 7. Administrative approval (ADMIN, SUPER_ADMIN)
+// 8. Administrative approval (ADMIN, SUPER_ADMIN)
 router.patch(
   '/:requestId/approve',
   authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
@@ -85,7 +98,7 @@ router.patch(
   approveBloodRequestController
 );
 
-// 8. Administrative rejection (ADMIN, SUPER_ADMIN)
+// 9. Administrative rejection (ADMIN, SUPER_ADMIN)
 router.patch(
   '/:requestId/reject',
   authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
@@ -94,6 +107,28 @@ router.patch(
     body: rejectBloodRequestSchema,
   }),
   rejectBloodRequestController
+);
+
+// 10. Administrative urgency update (ADMIN, SUPER_ADMIN)
+router.patch(
+  '/:requestId/urgency',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest({
+    params: requestIdParamSchema.shape.params,
+    body: updateUrgencySchema,
+  }),
+  updateBloodRequestUrgencyController
+);
+
+// 11. Administrative expiration (ADMIN, SUPER_ADMIN)
+router.patch(
+  '/:requestId/expire',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest({
+    params: requestIdParamSchema.shape.params,
+    body: expireBloodRequestSchema,
+  }),
+  expireBloodRequestController
 );
 
 export const bloodRequestRoutes = router;

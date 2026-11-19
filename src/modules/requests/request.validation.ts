@@ -123,25 +123,10 @@ export const createBloodRequestSchema = z
 
 export const updateBloodRequestSchema = z
   .object({
-    patientName: z
-      .string()
-      .trim()
-      .min(2, 'Patient name must be at least 2 characters')
-      .max(100)
-      .optional(),
+    patientName: z.string().trim().min(2).max(100).optional(),
     bloodGroup: z.nativeEnum(BloodGroup).optional(),
-    unitsNeeded: z
-      .number()
-      .int()
-      .min(MIN_UNITS_ALLOWED)
-      .max(MAX_UNITS_ALLOWED)
-      .optional(),
-    unitsRequired: z
-      .number()
-      .int()
-      .min(MIN_UNITS_ALLOWED)
-      .max(MAX_UNITS_ALLOWED)
-      .optional(),
+    unitsNeeded: z.number().int().min(MIN_UNITS_ALLOWED).max(MAX_UNITS_ALLOWED).optional(),
+    unitsRequired: z.number().int().min(MIN_UNITS_ALLOWED).max(MAX_UNITS_ALLOWED).optional(),
     hospitalName: z.string().trim().min(2).max(150).optional(),
     hospitalAddress: z.string().trim().min(3).max(255).optional(),
     district: z.string().trim().min(2).max(100).optional(),
@@ -191,14 +176,26 @@ export const updateBloodRequestSchema = z
 
 export const cancelBloodRequestSchema = z.object({
   cancellationReason: z.string().trim().max(500).optional(),
+  reason: z.string().trim().max(500).optional(),
 });
 
-export const rejectBloodRequestSchema = z.object({
-  rejectionReason: z
-    .string()
-    .trim()
-    .min(3, 'Rejection reason must be at least 3 characters')
-    .max(500, 'Rejection reason cannot exceed 500 characters'),
+export const rejectBloodRequestSchema = z
+  .object({
+    rejectionReason: z.string().trim().min(3, 'Rejection reason must be at least 3 characters').max(500).optional(),
+    reason: z.string().trim().min(3, 'Rejection reason must be at least 3 characters').max(500).optional(),
+  })
+  .refine((data) => data.rejectionReason !== undefined || data.reason !== undefined, {
+    message: 'Rejection reason is required',
+    path: ['reason'],
+  });
+
+export const updateUrgencySchema = z.object({
+  urgency: z.nativeEnum(RequestUrgency, { message: 'Invalid urgency level' }),
+  reason: z.string().trim().min(3, 'Reason must be at least 3 characters').max(500),
+});
+
+export const expireBloodRequestSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
 });
 
 export const requestIdParamSchema = z.object({
@@ -222,6 +219,29 @@ export const getBloodRequestsQuerySchema = z.object({
     toDate: z.string().optional(),
     sortBy: z
       .enum(['createdAt', 'requiredAt', 'neededAt', 'urgency', 'unitsRequired', 'city', 'district'])
+      .default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  }),
+});
+
+export const adminGetBloodRequestsQuerySchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    search: z.string().trim().optional(),
+    bloodGroup: z.nativeEnum(BloodGroup).optional(),
+    district: z.string().trim().optional(),
+    city: z.string().trim().optional(),
+    area: z.string().trim().optional(),
+    urgency: z.nativeEnum(RequestUrgency).optional(),
+    status: z.nativeEnum(RequestStatus).optional(),
+    requesterId: z.string().uuid().optional(),
+    createdFrom: z.string().optional(),
+    createdTo: z.string().optional(),
+    neededFrom: z.string().optional(),
+    neededTo: z.string().optional(),
+    sortBy: z
+      .enum(['createdAt', 'requiredAt', 'neededAt', 'urgency', 'unitsRequired', 'fulfilledUnits', 'city', 'district'])
       .default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).default('desc'),
   }),
