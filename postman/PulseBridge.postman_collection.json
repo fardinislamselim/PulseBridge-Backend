@@ -2229,7 +2229,375 @@
       ]
     },
     {
-      "name": "06. Admin",
+      "name": "06. Matching",
+      "description": "ABO/Rh Red Blood Cell (RBC) Compatibility Engine, proximity ranking, and eligible donor discovery endpoints.",
+      "item": [
+        {
+          "name": "Get Compatible Recipient Blood Groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/matching/compatibility?donorBloodGroup=O_NEGATIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matching",
+                "compatibility"
+              ],
+              "query": [
+                {
+                  "key": "donorBloodGroup",
+                  "value": "O_NEGATIVE",
+                  "description": "Donor ABO/Rh blood group"
+                }
+              ]
+            },
+            "description": "Retrieves all recipient blood groups that can safely receive red blood cells (RBCs) from an O_NEGATIVE donor. Returns universal recipient array."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Recipient compatibility lookup is valid\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.statusCode).to.eql(200);",
+                  "    pm.expect(json.data.donorBloodGroup).to.eql(\"O_NEGATIVE\");",
+                  "    pm.expect(json.data.compatibleRecipientBloodGroups).to.be.an(\"array\").with.lengthOf(8);",
+                  "    pm.expect(json.data.component).to.eql(\"RED_BLOOD_CELLS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - Universal RBC Donor Recipients",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/matching/compatibility?donorBloodGroup=O_NEGATIVE",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "matching",
+                    "compatibility"
+                  ],
+                  "query": [
+                    {
+                      "key": "donorBloodGroup",
+                      "value": "O_NEGATIVE"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"statusCode\": 200,\n  \"message\": \"Compatible recipient blood groups retrieved successfully\",\n  \"data\": {\n    \"donorBloodGroup\": \"O_NEGATIVE\",\n    \"compatibleRecipientBloodGroups\": [\n      \"O_NEGATIVE\",\n      \"O_POSITIVE\",\n      \"A_NEGATIVE\",\n      \"A_POSITIVE\",\n      \"B_NEGATIVE\",\n      \"B_POSITIVE\",\n      \"AB_NEGATIVE\",\n      \"AB_POSITIVE\"\n    ],\n    \"component\": \"RED_BLOOD_CELLS\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Compatible Donor Blood Groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/matching/compatibility?recipientBloodGroup=A_POSITIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matching",
+                "compatibility"
+              ],
+              "query": [
+                {
+                  "key": "recipientBloodGroup",
+                  "value": "A_POSITIVE",
+                  "description": "Recipient ABO/Rh blood group"
+                }
+              ]
+            },
+            "description": "Retrieves all donor blood groups that can safely donate red blood cells (RBCs) to an A_POSITIVE recipient."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Donor compatibility lookup is valid\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.statusCode).to.eql(200);",
+                  "    pm.expect(json.data.recipientBloodGroup).to.eql(\"A_POSITIVE\");",
+                  "    pm.expect(json.data.compatibleDonorBloodGroups).to.be.an(\"array\").with.lengthOf(4);",
+                  "    pm.expect(json.data.component).to.eql(\"RED_BLOOD_CELLS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - Compatible Donors for A_POSITIVE",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/matching/compatibility?recipientBloodGroup=A_POSITIVE",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "matching",
+                    "compatibility"
+                  ],
+                  "query": [
+                    {
+                      "key": "recipientBloodGroup",
+                      "value": "A_POSITIVE"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"statusCode\": 200,\n  \"message\": \"Compatible donor blood groups retrieved successfully\",\n  \"data\": {\n    \"recipientBloodGroup\": \"A_POSITIVE\",\n    \"compatibleDonorBloodGroups\": [\n      \"O_NEGATIVE\",\n      \"O_POSITIVE\",\n      \"A_NEGATIVE\",\n      \"A_POSITIVE\"\n    ],\n    \"component\": \"RED_BLOOD_CELLS\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Check Donor-Recipient Compatibility",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/matching/compatibility?donorBloodGroup=O_NEGATIVE&recipientBloodGroup=A_POSITIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matching",
+                "compatibility"
+              ],
+              "query": [
+                {
+                  "key": "donorBloodGroup",
+                  "value": "O_NEGATIVE",
+                  "description": "Donor blood group"
+                },
+                {
+                  "key": "recipientBloodGroup",
+                  "value": "A_POSITIVE",
+                  "description": "Recipient blood group"
+                }
+              ]
+            },
+            "description": "Performs pairwise evaluation of red blood cell compatibility between a donor and recipient blood group, returning compatibility determination, clinical rationale, and mandatory medical crossmatch disclaimer."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Pairwise compatibility determination is valid\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.compatible).to.be.true;",
+                  "    pm.expect(json.data.donorBloodGroup).to.eql(\"O_NEGATIVE\");",
+                  "    pm.expect(json.data.recipientBloodGroup).to.eql(\"A_POSITIVE\");",
+                  "    pm.expect(json.data.component).to.eql(\"RED_BLOOD_CELLS\");",
+                  "    pm.expect(json.data.requiresMedicalCrossmatch).to.be.true;",
+                  "    pm.expect(json.data.reason).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - Pairwise Compatibility Result",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/matching/compatibility?donorBloodGroup=O_NEGATIVE&recipientBloodGroup=A_POSITIVE",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "matching",
+                    "compatibility"
+                  ],
+                  "query": [
+                    {
+                      "key": "donorBloodGroup",
+                      "value": "O_NEGATIVE"
+                    },
+                    {
+                      "key": "recipientBloodGroup",
+                      "value": "A_POSITIVE"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"statusCode\": 200,\n  \"message\": \"Blood compatibility evaluated successfully\",\n  \"data\": {\n    \"compatible\": true,\n    \"donorBloodGroup\": \"O_NEGATIVE\",\n    \"recipientBloodGroup\": \"A_POSITIVE\",\n    \"component\": \"RED_BLOOD_CELLS\",\n    \"reason\": \"The donor blood group is compatible with the recipient for red blood cell donation.\",\n    \"requiresMedicalCrossmatch\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Find Eligible Donors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "Bearer access token of requester or admin"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matching/requests/{{requestId}}/donors?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matching",
+                "requests",
+                "{{requestId}}",
+                "donors"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Maximum number of compatible donors to return"
+                }
+              ]
+            },
+            "description": "Finds available, verified, eligible, and ABO/Rh-compatible donors for the target blood donation request, ranked by geographical proximity. Sensitive PII (phone, exact address, coordinates) is masked to preserve donor privacy."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Matched donors list is returned\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.statusCode).to.eql(200);",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});",
+                  "if (json.data && json.data.length > 0) {",
+                  "    var firstDonor = json.data[0];",
+                  "    pm.test(\"First matched donor has valid compatibility object\", function () {",
+                  "        pm.expect(firstDonor.donorId).to.be.a(\"string\");",
+                  "        pm.expect(firstDonor.bloodCompatibility.compatible).to.be.true;",
+                  "        pm.expect(firstDonor.bloodCompatibility.requiresMedicalCrossmatch).to.be.true;",
+                  "    });",
+                  "    pm.test(\"Donor PII is strictly masked\", function () {",
+                  "        pm.expect(firstDonor.phone).to.be.undefined;",
+                  "        pm.expect(firstDonor.address).to.be.undefined;",
+                  "        pm.expect(firstDonor.latitude).to.be.undefined;",
+                  "        pm.expect(firstDonor.longitude).to.be.undefined;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - Matched Donors",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/matching/requests/{{requestId}}/donors?limit=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "matching",
+                    "requests",
+                    "{{requestId}}",
+                    "donors"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"statusCode\": 200,\n  \"message\": \"Compatible and eligible donors retrieved successfully\",\n  \"data\": [\n    {\n      \"donorId\": \"d1a2b3c4-e5f6-7890-abcd-ef1234567890\",\n      \"donorName\": \"Jane Donor\",\n      \"donorBloodGroup\": \"O_NEGATIVE\",\n      \"requestedBloodGroup\": \"A_POSITIVE\",\n      \"distanceKm\": 3.42,\n      \"district\": \"Dhaka\",\n      \"city\": \"Dhaka\",\n      \"area\": \"Dhanmondi\",\n      \"isAvailable\": true,\n      \"isVerified\": true,\n      \"bloodCompatibility\": {\n        \"compatible\": true,\n        \"component\": \"RED_BLOOD_CELLS\",\n        \"requiresMedicalCrossmatch\": true\n      }\n    }\n  ],\n  \"meta\": {\n    \"count\": 1\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. Admin",
       "item": [
         {
           "name": "Admin Dashboard Metrics",

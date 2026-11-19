@@ -4,6 +4,7 @@ import { authRoutes } from '../modules/auth/auth.route.js';
 import { userRoutes } from '../modules/users/user.route.js';
 import { donorRoutes } from '../modules/donors/donor.route.js';
 import { bloodRequestRoutes } from '../modules/requests/request.route.js';
+import { matchingRoutes } from '../modules/matching/matching.route.js';
 import { adminRoutes } from '../modules/admin/admin.route.js';
 
 const router = Router();
@@ -22,6 +23,9 @@ router.use('/donors', donorRoutes);
 
 // Blood Donation Request Management
 router.use('/blood-requests', bloodRequestRoutes);
+
+// Donor Matching & ABO/Rh Compatibility
+router.use('/matching', matchingRoutes);
 
 // Administration & Analytics
 router.use('/admin', adminRoutes);

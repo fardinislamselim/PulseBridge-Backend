@@ -1,41 +1,21 @@
 import { BloodGroup } from '../../generated/prisma/enums.js';
-import {
-  DONATION_COOLDOWN_DAYS,
-  RBC_DONOR_COMPATIBILITY_MAP,
-  RBC_RECIPIENT_COMPATIBILITY_MAP,
-} from './donor.constant.js';
+import { DONATION_COOLDOWN_DAYS } from './donor.constant.js';
 import type {
   DonorProfileResponse,
   PublicDonorSummary,
 } from './donor.interface.js';
+import {
+  isBloodGroupCompatible,
+  isBloodCompatible,
+  getCompatibleRecipientBloodGroups,
+  getCompatibleDonorBloodGroups,
+} from '../matching/utils/blood-compatibility.js';
 
-/**
- * Checks whether RBCs from donorGroup can be safely transfused to recipientGroup.
- */
-export const isBloodGroupCompatible = (
-  donorGroup: BloodGroup,
-  recipientGroup: BloodGroup,
-): boolean => {
-  const compatibleRecipients = RBC_DONOR_COMPATIBILITY_MAP[donorGroup];
-  return compatibleRecipients ? compatibleRecipients.includes(recipientGroup) : false;
-};
-
-/**
- * Returns list of blood groups that can safely receive RBCs from the given donor blood group.
- */
-export const getCompatibleRecipientBloodGroups = (
-  donorGroup: BloodGroup,
-): BloodGroup[] => {
-  return RBC_DONOR_COMPATIBILITY_MAP[donorGroup] || [];
-};
-
-/**
- * Returns list of blood groups whose RBCs can be safely received by the given recipient blood group.
- */
-export const getCompatibleDonorBloodGroups = (
-  recipientGroup: BloodGroup,
-): BloodGroup[] => {
-  return RBC_RECIPIENT_COMPATIBILITY_MAP[recipientGroup] || [];
+export {
+  isBloodGroupCompatible,
+  isBloodCompatible,
+  getCompatibleRecipientBloodGroups,
+  getCompatibleDonorBloodGroups,
 };
 
 /**
