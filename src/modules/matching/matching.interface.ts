@@ -28,6 +28,7 @@ export interface FindDonorsQueryDTO {
   latitude?: number;
   longitude?: number;
   radiusKm?: number;
+  page?: number;
   limit?: number;
 }
 

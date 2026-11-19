@@ -52,6 +52,59 @@ export interface PublicDonorSummary {
   user: PublicDonorUserSummary;
 }
 
+export interface DonorSearchResultDTO {
+  id: string;
+  name: string;
+  bloodGroup: BloodGroup | null;
+  district: string | null;
+  city: string | null;
+  area?: string | null;
+  isAvailable: boolean;
+  isVerified: boolean;
+  eligibility: {
+    eligible: boolean;
+  };
+  distanceKm?: number;
+}
+
+export interface DonorSearchQueryDTO {
+  bloodGroup?: BloodGroup;
+  recipientBloodGroup?: BloodGroup;
+  district?: string;
+  city?: string;
+  area?: string;
+  search?: string;
+  isAvailable?: boolean;
+  isVerified?: boolean;
+  eligibleOnly?: boolean;
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+  sortBy?:
+    | 'distance'
+    | 'createdAt'
+    | 'bloodGroup'
+    | 'district'
+    | 'city'
+    | 'area'
+    | 'lastDonationDate'
+    | 'isVerified';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface CompatibleDonorsQueryDTO {
+  recipientBloodGroup: BloodGroup;
+  district?: string;
+  city?: string;
+  area?: string;
+  isAvailable?: boolean;
+  eligibleOnly?: boolean;
+  page?: number;
+  limit?: number;
+}
+
 export interface UpdateDonorProfileDTO {
   name?: string;
   phone?: string;

@@ -25,14 +25,20 @@ import type {
   AdminRestrictDonorDTO,
   MatchingOptions,
   EligibleDonorMatch,
+  DonorSearchQueryDTO,
+  DonorSearchResultDTO,
 } from './donor.interface.js';
 import {
   calculateDistanceKm,
   calculateCooldown,
   isBloodGroupCompatible,
+  isBloodCompatible,
   getCompatibleDonorBloodGroups,
   toPublicDonorSummary,
   toFullDonorProfile,
+  getBoundingBox,
+  isDonorEligibleSync,
+  toDonorSearchResultDTO,
 } from './donor.utils.js';
 import { updateRequestFulfillment } from '../requests/request.service.js';
 
@@ -836,4 +842,238 @@ export const createDonorAssignment = async (
 
     return assignment;
   });
+};
+
+/**
+ * Advanced Donor Discovery & Search Service.
+ * Supports exact blood group, recipient compatibility lookup, geographical filtering (district, city, area),
+ * full-text search, availability, medical eligibility, Haversine radius search, and nearest-donor ranking.
+ */
+export const searchDonors = async (
+  query: DonorSearchQueryDTO,
+  _viewer?: AuthUser,
+): Promise<{
+  data: DonorSearchResultDTO[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}> => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+  const sortBy = query.sortBy || 'createdAt';
+  const sortOrder = query.sortOrder || 'desc';
+
+  // 1. Advanced Blood Group Filtering (Intersection handling)
+  let allowedBloodGroups: BloodGroup[] | undefined;
+
+  if (query.bloodGroup && query.recipientBloodGroup) {
+    // Both supplied: check compatibility
+    if (!isBloodCompatible(query.bloodGroup, query.recipientBloodGroup)) {
+      // Incompatible intersection returns empty results
+      return {
+        data: [],
+        meta: { page, limit, total: 0, totalPages: 0 },
+      };
+    }
+    allowedBloodGroups = [query.bloodGroup];
+  } else if (query.recipientBloodGroup) {
+    allowedBloodGroups = getCompatibleDonorBloodGroups(query.recipientBloodGroup);
+  } else if (query.bloodGroup) {
+    allowedBloodGroups = [query.bloodGroup];
+  }
+
+  // 2. Build Prisma Where Clause
+  const where: Prisma.DonorProfileWhereInput = {};
+
+  if (allowedBloodGroups) {
+    where.bloodGroup = { in: allowedBloodGroups };
+  }
+
+  if (query.district) {
+    where.district = { equals: query.district, mode: 'insensitive' };
+  }
+
+  if (query.city) {
+    where.city = { equals: query.city, mode: 'insensitive' };
+  }
+
+  if (query.area) {
+    where.area = { equals: query.area, mode: 'insensitive' };
+  }
+
+  if (query.search) {
+    where.OR = [
+      { district: { contains: query.search, mode: 'insensitive' } },
+      { city: { contains: query.search, mode: 'insensitive' } },
+      { area: { contains: query.search, mode: 'insensitive' } },
+    ];
+  }
+
+  if (query.isAvailable !== undefined) {
+    where.isAvailable = query.isAvailable;
+  }
+
+  if (query.isVerified !== undefined) {
+    where.isVerified = query.isVerified;
+  }
+
+  const now = new Date();
+
+  // 3. Medical eligibility filtering (eligibleOnly)
+  if (query.eligibleOnly === true) {
+    if (query.isAvailable === undefined) {
+      where.isAvailable = true;
+    }
+    where.hasMedicalRestriction = false;
+    if (!allowedBloodGroups) {
+      where.bloodGroup = { not: null };
+    }
+    if (!query.district) {
+      where.district = { not: null };
+    }
+    if (!query.city) {
+      where.city = { not: null };
+    }
+    where.user = {
+      status: UserStatus.ACTIVE,
+      emailVerified: true,
+    };
+    where.OR = [{ eligibleAt: null }, { eligibleAt: { lte: now } }];
+    where.assignments = {
+      none: {
+        status: { in: [AssignmentStatus.PENDING, AssignmentStatus.ACCEPTED] },
+      },
+    };
+  }
+
+  // 4. Coordinates & Radius handling with Bounding Box
+  const hasCoordinates = query.latitude !== undefined && query.longitude !== undefined;
+  if (hasCoordinates && query.radius !== undefined) {
+    const { minLat, maxLat, minLng, maxLng } = getBoundingBox(
+      query.latitude!,
+      query.longitude!,
+      query.radius
+    );
+    where.latitude = { gte: minLat, lte: maxLat };
+    where.longitude = { gte: minLng, lte: maxLng };
+  } else if (sortBy === 'distance') {
+    where.latitude = { not: null };
+    where.longitude = { not: null };
+  }
+
+  const includeRelations = {
+    user: {
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        emailVerified: true,
+      },
+    },
+    assignments: {
+      where: {
+        status: { in: [AssignmentStatus.PENDING, AssignmentStatus.ACCEPTED] },
+      },
+      select: { id: true },
+    },
+  };
+
+  // 5. Query execution: Radius or distance sorting requires candidate evaluation
+  if (query.radius !== undefined || sortBy === 'distance') {
+    const candidates = await prisma.donorProfile.findMany({
+      where,
+      include: includeRelations,
+      orderBy: sortBy !== 'distance' ? { [sortBy]: sortOrder } : undefined,
+    });
+
+    // Compute Haversine distance and evaluate eligibility
+    let processed = candidates.map((donor) => {
+      let distanceKm: number | undefined;
+      if (hasCoordinates && donor.latitude != null && donor.longitude != null) {
+        distanceKm = calculateDistanceKm(
+          query.latitude!,
+          query.longitude!,
+          donor.latitude,
+          donor.longitude
+        );
+      }
+      const eligible = isDonorEligibleSync(donor);
+      return {
+        donor,
+        distanceKm,
+        eligible,
+      };
+    });
+
+    // Exact radius filtering (eliminates bounding box corner outliers)
+    if (query.radius !== undefined) {
+      processed = processed.filter(
+        (item) => item.distanceKm !== undefined && item.distanceKm <= query.radius!
+      );
+    }
+
+    // Distance sorting
+    if (sortBy === 'distance') {
+      processed.sort((a, b) => {
+        const d1 = a.distanceKm ?? 999999;
+        const d2 = b.distanceKm ?? 999999;
+        return sortOrder === 'asc' ? d1 - d2 : d2 - d1;
+      });
+    }
+
+    const total = processed.length;
+    const paginatedItems = processed.slice((page - 1) * limit, page * limit);
+
+    const data = paginatedItems.map((item) =>
+      toDonorSearchResultDTO(item.donor, item.eligible, item.distanceKm)
+    );
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  // 6. Standard Database-Side Pagination (when radius/distance sort is not used)
+  const total = await prisma.donorProfile.count({ where });
+
+  const donors = await prisma.donorProfile.findMany({
+    where,
+    include: includeRelations,
+    orderBy: { [sortBy]: sortOrder },
+    skip: (page - 1) * limit,
+    take: limit,
+  });
+
+  const data = donors.map((donor) => {
+    let distanceKm: number | undefined;
+    if (hasCoordinates && donor.latitude != null && donor.longitude != null) {
+      distanceKm = calculateDistanceKm(
+        query.latitude!,
+        query.longitude!,
+        donor.latitude,
+        donor.longitude
+      );
+    }
+    const eligible = isDonorEligibleSync(donor);
+    return toDonorSearchResultDTO(donor, eligible, distanceKm);
+  });
+
+  return {
+    data,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
 };

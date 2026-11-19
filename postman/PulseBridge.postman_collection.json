@@ -1619,6 +1619,438 @@
               "body": "{\n  \"success\": true,\n  \"statusCode\": 200,\n  \"message\": \"Donor retrieved successfully\",\n  \"data\": {\n    \"id\": \"c1f7b7e2-45a8-4e89-b1d3-3f1d8c7c9e01\",\n    \"bloodGroup\": \"O_POSITIVE\",\n    \"district\": \"Dhaka\",\n    \"city\": \"Dhaka\",\n    \"area\": \"Dhanmondi\",\n    \"isAvailable\": true,\n    \"isVerified\": true,\n    \"lastDonationDate\": \"2026-01-10T00:00:00.000Z\",\n    \"eligibleAt\": \"2026-04-10T00:00:00.000Z\",\n    \"user\": {\n      \"name\": \"Jane Donor\"\n    }\n  }\n}"
             }
           ]
+        },
+        {
+          "name": "Search Donors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "Bearer access token of authenticated user"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?district=Dhaka&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "district",
+                  "value": "Dhaka",
+                  "description": "Filter by district"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Comprehensive donor search and filtering endpoint. Returns privacy-sanitized donor summaries with masked contact details and coordinates."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Search response structure is valid\", function () {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by Blood Group",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?bloodGroup=O_NEGATIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "bloodGroup",
+                  "value": "O_NEGATIVE",
+                  "description": "Exact donor blood group"
+                }
+              ]
+            },
+            "description": "Finds donors matching an exact ABO/Rh blood group."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by Recipient Compatibility",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?recipientBloodGroup=A_POSITIVE&eligibleOnly=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "recipientBloodGroup",
+                  "value": "A_POSITIVE",
+                  "description": "Recipient target blood group"
+                },
+                {
+                  "key": "eligibleOnly",
+                  "value": "true",
+                  "description": "Return only medically eligible donors"
+                }
+              ]
+            },
+            "description": "Finds donors who can safely donate red blood cells to an A_POSITIVE recipient using the central compatibility engine."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by District",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?district=Dhaka",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "district",
+                  "value": "Dhaka",
+                  "description": "District filter"
+                }
+              ]
+            },
+            "description": "Filters donors located in the specified district."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by City",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?city=Dhaka&bloodGroup=B_POSITIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Dhaka"
+                },
+                {
+                  "key": "bloodGroup",
+                  "value": "B_POSITIVE"
+                }
+              ]
+            },
+            "description": "Filters donors by city and blood group."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by Availability",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?isAvailable=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "isAvailable",
+                  "value": "true",
+                  "description": "Filter only available donors"
+                }
+              ]
+            },
+            "description": "Filters donors who have opted into being available for donations."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by Radius",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/search?latitude=23.7461&longitude=90.3742&radius=10&sortBy=distance&sortOrder=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "23.7461"
+                },
+                {
+                  "key": "longitude",
+                  "value": "90.3742"
+                },
+                {
+                  "key": "radius",
+                  "value": "10",
+                  "description": "Radius in km"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "distance"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "Finds donors within a 10 km geographic radius calculated using the Haversine formula, sorted by distance ascending."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Find Nearby Donors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/nearby?latitude=23.7461&longitude=90.3742&radius=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "23.7461"
+                },
+                {
+                  "key": "longitude",
+                  "value": "90.3742"
+                },
+                {
+                  "key": "radius",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Proximity-based nearby donor search endpoint."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Find Compatible Donors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/donors/compatible?recipientBloodGroup=A_POSITIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "donors",
+                "compatible"
+              ],
+              "query": [
+                {
+                  "key": "recipientBloodGroup",
+                  "value": "A_POSITIVE"
+                }
+              ]
+            },
+            "description": "Finds compatible donors directly for a given recipient blood group."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -2487,7 +2919,7 @@
           ]
         },
         {
-          "name": "Find Eligible Donors",
+          "name": "Find Donors for Blood Request",
           "request": {
             "method": "GET",
             "header": [

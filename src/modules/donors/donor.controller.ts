@@ -12,7 +12,9 @@ import {
   getNearbyDonors,
   adminVerifyDonor,
   adminRestrictDonor,
+  searchDonors,
 } from './donor.service.js';
+import type { DonorSearchQueryDTO, CompatibleDonorsQueryDTO } from './donor.interface.js';
 
 export const getMyDonorProfileController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -117,6 +119,46 @@ export const adminRestrictDonorController = asyncHandler(
       res,
       'Donor medical restrictions updated successfully',
       updatedDonor,
+    );
+  },
+);
+
+export const searchDonorsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as unknown as DonorSearchQueryDTO;
+    const result = await searchDonors(query, req.user);
+    return sendSuccess(
+      res,
+      'Donors retrieved successfully',
+      result.data,
+      httpStatus.OK,
+      result.meta,
+    );
+  },
+);
+
+export const getCompatibleDonorsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const query = req.query as unknown as CompatibleDonorsQueryDTO;
+    const result = await searchDonors(
+      {
+        recipientBloodGroup: query.recipientBloodGroup,
+        district: query.district,
+        city: query.city,
+        area: query.area,
+        isAvailable: query.isAvailable,
+        eligibleOnly: query.eligibleOnly,
+        page: query.page,
+        limit: query.limit,
+      },
+      req.user,
+    );
+    return sendSuccess(
+      res,
+      'Compatible donors retrieved successfully',
+      result.data,
+      httpStatus.OK,
+      result.meta,
     );
   },
 );

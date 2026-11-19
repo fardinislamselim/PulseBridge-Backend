@@ -9,6 +9,8 @@ import {
   getNearbyDonorsController,
   getDonorByIdController,
   getDonorsController,
+  searchDonorsController,
+  getCompatibleDonorsController,
 } from './donor.controller.js';
 import {
   updateDonorProfileSchema,
@@ -16,6 +18,8 @@ import {
   getDonorsQuerySchema,
   nearbyDonorsQuerySchema,
   donorIdParamSchema,
+  donorSearchSchema,
+  compatibleDonorsQuerySchema,
 } from './donor.validation.js';
 
 const router = Router();
@@ -38,6 +42,22 @@ router.patch(
 );
 
 router.get('/me/eligibility', authenticate, getDonorEligibilityController);
+
+// Advanced donor search & discovery (Auth required)
+router.get(
+  '/search',
+  authenticate,
+  validateRequest(donorSearchSchema),
+  searchDonorsController,
+);
+
+// Compatible donors discovery (Auth required)
+router.get(
+  '/compatible',
+  authenticate,
+  validateRequest(compatibleDonorsQuerySchema),
+  getCompatibleDonorsController,
+);
 
 // Proximity / nearby search
 router.get(

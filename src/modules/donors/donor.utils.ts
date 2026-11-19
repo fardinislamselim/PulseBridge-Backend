@@ -1,8 +1,9 @@
-import { BloodGroup } from '../../generated/prisma/enums.js';
+import { BloodGroup, UserStatus } from '../../generated/prisma/enums.js';
 import { DONATION_COOLDOWN_DAYS } from './donor.constant.js';
 import type {
   DonorProfileResponse,
   PublicDonorSummary,
+  DonorSearchResultDTO,
 } from './donor.interface.js';
 import {
   isBloodGroupCompatible,
@@ -10,41 +11,20 @@ import {
   getCompatibleRecipientBloodGroups,
   getCompatibleDonorBloodGroups,
 } from '../matching/utils/blood-compatibility.js';
+import {
+  calculateDistanceKm,
+  isValidCoordinate,
+  getBoundingBox,
+} from '../../shared/location/location.utils.js';
 
 export {
   isBloodGroupCompatible,
   isBloodCompatible,
   getCompatibleRecipientBloodGroups,
   getCompatibleDonorBloodGroups,
-};
-
-/**
- * Calculates great-circle distance between two geographic coordinates using the Haversine formula.
- * Returns distance in kilometers (rounded to 2 decimal places).
- */
-export const calculateDistanceKm = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number => {
-  const EARTH_RADIUS_KM = 6371;
-  const toRad = (angle: number) => (angle * Math.PI) / 180;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = EARTH_RADIUS_KM * c;
-
-  return Math.round(distance * 100) / 100;
+  calculateDistanceKm,
+  isValidCoordinate,
+  getBoundingBox,
 };
 
 /**
@@ -145,5 +125,62 @@ export const toFullDonorProfile = (donor: any): DonorProfileResponse => {
       : {}),
     createdAt: donor.createdAt,
     updatedAt: donor.updatedAt,
+  };
+};
+
+/**
+ * Fast synchronous eligibility check based on pre-fetched donor profile relations.
+ * Evaluates account status, verification, medical restrictions, location, cooldown, and assignments.
+ */
+export const isDonorEligibleSync = (donor: {
+  isAvailable: boolean;
+  hasMedicalRestriction: boolean;
+  bloodGroup: BloodGroup | null;
+  district: string | null;
+  city: string | null;
+  lastDonationDate?: Date | null;
+  eligibleAt?: Date | null;
+  user?: { status: UserStatus; emailVerified: boolean } | null;
+  assignments?: { id: string }[];
+}): boolean => {
+  if (!donor.user) return false;
+  if (donor.user.status !== UserStatus.ACTIVE) return false;
+  if (!donor.user.emailVerified) return false;
+  if (donor.hasMedicalRestriction) return false;
+  if (!donor.bloodGroup) return false;
+  if (!donor.district || !donor.city) return false;
+  if (!donor.isAvailable) return false;
+  if (donor.assignments && donor.assignments.length > 0) return false;
+  if (donor.eligibleAt && donor.eligibleAt > new Date()) return false;
+  if (donor.lastDonationDate) {
+    const cooldown = calculateCooldown(donor.lastDonationDate);
+    if (cooldown.isCooldownActive) return false;
+  }
+  return true;
+};
+
+/**
+ * Maps a donor profile entity to a privacy-safe search result DTO.
+ * Guarantees phone, address, and exact coordinates are strictly masked.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const toDonorSearchResultDTO = (
+  donor: any,
+  isEligible: boolean,
+  distanceKm?: number
+): DonorSearchResultDTO => {
+  return {
+    id: donor.id,
+    name: donor.user?.name ?? 'Anonymous Donor',
+    bloodGroup: donor.bloodGroup ?? null,
+    district: donor.district ?? null,
+    city: donor.city ?? null,
+    area: donor.area ?? null,
+    isAvailable: Boolean(donor.isAvailable),
+    isVerified: Boolean(donor.isVerified),
+    eligibility: {
+      eligible: isEligible,
+    },
+    ...(distanceKm !== undefined && !isNaN(distanceKm) ? { distanceKm } : {}),
   };
 };

@@ -33,7 +33,7 @@ export const findEligibleDonorsController = asyncHandler(
       ...(req.params.requestId ? { requestId: req.params.requestId } : {}),
     } as unknown as FindDonorsQueryDTO;
 
-    const result = await findEligibleDonors(query);
+    const result = await findEligibleDonors(query, req.user);
 
     return sendSuccess(
       res,
