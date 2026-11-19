@@ -345,3 +345,33 @@ export const sendPasswordResetOtpEmail = async (
     },
   });
 };
+
+export interface BloodRequestStatusEmailData {
+  recipientName: string;
+  patientName: string;
+  bloodGroup: string;
+  units: number;
+  hospitalName: string;
+  hospitalAddress?: string;
+  contactNumber?: string;
+  neededBy?: string;
+  status: string;
+  reason?: string;
+  requestUrl?: string;
+}
+
+export const sendBloodRequestStatusEmail = async (
+  email: string,
+  details: BloodRequestStatusEmailData
+): Promise<boolean> => {
+  const subject = `Update: Blood Request for ${details.patientName} is ${details.status}`;
+  return sendTemplateEmail({
+    to: email,
+    subject,
+    template: 'blood-request-created',
+    data: {
+      ...details,
+      subject,
+    },
+  });
+};

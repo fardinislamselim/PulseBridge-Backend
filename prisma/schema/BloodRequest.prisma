@@ -1,24 +1,27 @@
 model BloodRequest {
-  id              String         @id @default(uuid())
-  requesterId     String
-  patientName     String
-  bloodGroup      BloodGroup
-  unitsRequired   Int
-  hospitalName    String
-  hospitalAddress String
-  city            String
-  district        String
-  latitude        Float?
-  longitude       Float?
-  contactPerson   String
-  contactPhone    String
-  urgency         RequestUrgency @default(NORMAL)
-  status          RequestStatus  @default(PENDING)
-  requiredAt      DateTime
-  details         String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  deletedAt       DateTime?
+  id                 String         @id @default(uuid())
+  requesterId        String
+  patientName        String
+  bloodGroup         BloodGroup
+  unitsRequired      Int
+  hospitalName       String
+  hospitalAddress    String
+  city               String
+  district           String
+  area               String?        @default("")
+  latitude           Float?
+  longitude          Float?
+  contactPerson      String
+  contactPhone       String
+  urgency            RequestUrgency @default(NORMAL)
+  status             RequestStatus  @default(PENDING)
+  requiredAt         DateTime
+  details            String?
+  rejectionReason    String?
+  cancellationReason String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime?
 
   // Relations
   requester   User              @relation(fields: [requesterId], references: [id], onDelete: Restrict)
@@ -31,6 +34,7 @@ model BloodRequest {
   @@index([urgency])
   @@index([city])
   @@index([district])
+  @@index([area])
   @@index([requiredAt])
   @@map("blood_requests")
 }
