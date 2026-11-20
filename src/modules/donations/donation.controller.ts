@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendSuccess } from '../../utils/ApiResponse.js';
+import { sendSuccess, sendCreated } from '../../utils/ApiResponse.js';
 import {
   createDonation,
   verifyDonation,
@@ -15,11 +15,10 @@ import {
 export const createDonationController = asyncHandler(
   async (req: Request, res: Response) => {
     const donation = await createDonation(req.body, req.user!);
-    return sendSuccess(
+    return sendCreated(
       res,
       'Donation record created successfully',
       donation,
-      httpStatus.CREATED,
     );
   },
 );
