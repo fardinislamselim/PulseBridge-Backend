@@ -19,6 +19,24 @@ export const envSchema = z.object({
   REDIS_PORT: coerceNumber(6379),
   REDIS_USER: z.string().default('default'),
   REDIS_PASSWORD: z.string().optional().default(''),
+  REDIS_TLS: z
+    .preprocess((val) => val === 'true' || val === true, z.boolean())
+    .default(false),
+  REDIS_DB: coerceNumber(0),
+  REDIS_KEY_PREFIX: z.string().default('pulsebridge:v1:'),
+  REDIS_MAX_RETRIES: coerceNumber(10),
+  REDIS_CONNECT_TIMEOUT_MS: coerceNumber(5000),
+  CACHE_DEFAULT_TTL_SECONDS: coerceNumber(300),
+  CACHE_USER_TTL_SECONDS: coerceNumber(3600),
+  CACHE_DONOR_SEARCH_TTL_SECONDS: coerceNumber(300),
+  CACHE_REQUEST_LIST_TTL_SECONDS: coerceNumber(120),
+  CACHE_DASHBOARD_TTL_SECONDS: coerceNumber(300),
+  CACHE_NOTIFICATION_COUNT_TTL_SECONDS: coerceNumber(60),
+  RATE_LIMIT_ENABLED: z
+    .preprocess((val) => (val === undefined ? true : val === 'true' || val === true), z.boolean())
+    .default(true),
+  QUEUE_CONCURRENCY: coerceNumber(5),
+  WORKER_POLL_INTERVAL_MS: coerceNumber(3000),
   JWT_ACCESS_SECRET: z.string().min(1, 'JWT_ACCESS_SECRET is required'),
   JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET is required'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
@@ -89,10 +107,7 @@ export const validateEnv = (configRecord: Record<string, unknown> = process.env)
   const mergedRecord = {
     ...configRecord,
     EMAIL_PASS:
-      configRecord.EMAIL_PASS ||
-      configRecord.EMAIL_PASSWORD ||
-      configRecord.SMTP_PASS ||
-      '',
+      configRecord.EMAIL_PASS || configRecord.EMAIL_PASSWORD || configRecord.SMTP_PASS || '',
   };
 
   const result = envSchema.safeParse(mergedRecord);
@@ -119,6 +134,20 @@ export const config = {
   redis_port: env.REDIS_PORT,
   redis_user: env.REDIS_USER,
   redis_password: env.REDIS_PASSWORD,
+  redis_tls: env.REDIS_TLS,
+  redis_db: env.REDIS_DB,
+  redis_key_prefix: env.REDIS_KEY_PREFIX,
+  redis_max_retries: env.REDIS_MAX_RETRIES,
+  redis_connect_timeout_ms: env.REDIS_CONNECT_TIMEOUT_MS,
+  cache_default_ttl: env.CACHE_DEFAULT_TTL_SECONDS,
+  cache_user_ttl: env.CACHE_USER_TTL_SECONDS,
+  cache_donor_search_ttl: env.CACHE_DONOR_SEARCH_TTL_SECONDS,
+  cache_request_list_ttl: env.CACHE_REQUEST_LIST_TTL_SECONDS,
+  cache_dashboard_ttl: env.CACHE_DASHBOARD_TTL_SECONDS,
+  cache_notification_count_ttl: env.CACHE_NOTIFICATION_COUNT_TTL_SECONDS,
+  rate_limit_enabled: env.RATE_LIMIT_ENABLED,
+  queue_concurrency: env.QUEUE_CONCURRENCY,
+  worker_poll_interval_ms: env.WORKER_POLL_INTERVAL_MS,
   jwt_access_secret: env.JWT_ACCESS_SECRET,
   jwt_refresh_secret: env.JWT_REFRESH_SECRET,
   jwt_access_expires_in: env.JWT_ACCESS_EXPIRES_IN,

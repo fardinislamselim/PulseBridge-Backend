@@ -2,8 +2,27 @@ import { Router } from 'express';
 import { authorize } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validateRequest.js';
 import { UserRole } from '../../generated/prisma/enums.js';
-import { getAdminDashboardController, getAuditLogsController } from './admin.controller.js';
-import { getAuditLogsQuerySchema } from './admin.validation.js';
+import {
+  getAdminDashboardController,
+  getDashboardOverviewController,
+  getRecentActivitiesController,
+  getUserAnalyticsController,
+  getDonorAnalyticsController,
+  getBloodRequestAnalyticsController,
+  getDonationAnalyticsController,
+  getAssignmentAnalyticsController,
+  getEmergencyAnalyticsController,
+  getPaymentAnalyticsController,
+  getNotificationAnalyticsController,
+  getGrowthAnalyticsController,
+  getAuditLogsController,
+} from './admin.controller.js';
+import {
+  getAuditLogsQuerySchema,
+  dashboardOverviewQuerySchema,
+  recentActivitiesQuerySchema,
+  analyticsFilterQuerySchema,
+} from './admin.validation.js';
 import {
   getUsersController,
   getUserByIdController,
@@ -78,6 +97,63 @@ router.use(authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN));
 
 // Dashboard metrics (ADMIN & SUPER_ADMIN)
 router.get('/dashboard', getAdminDashboardController);
+router.get(
+  '/dashboard/overview',
+  validateRequest(dashboardOverviewQuerySchema),
+  getDashboardOverviewController
+);
+router.get(
+  '/dashboard/recent-activities',
+  validateRequest(recentActivitiesQuerySchema),
+  getRecentActivitiesController
+);
+
+// Platform Analytics (ADMIN & SUPER_ADMIN)
+router.get(
+  '/analytics/users',
+  validateRequest(analyticsFilterQuerySchema),
+  getUserAnalyticsController
+);
+router.get(
+  '/analytics/donors',
+  validateRequest(analyticsFilterQuerySchema),
+  getDonorAnalyticsController
+);
+router.get(
+  '/analytics/blood-requests',
+  validateRequest(analyticsFilterQuerySchema),
+  getBloodRequestAnalyticsController
+);
+router.get(
+  '/analytics/donations',
+  validateRequest(analyticsFilterQuerySchema),
+  getDonationAnalyticsController
+);
+router.get(
+  '/analytics/assignments',
+  validateRequest(analyticsFilterQuerySchema),
+  getAssignmentAnalyticsController
+);
+router.get(
+  '/analytics/emergency',
+  validateRequest(analyticsFilterQuerySchema),
+  getEmergencyAnalyticsController
+);
+router.get(
+  '/analytics/payments',
+  validateRequest(analyticsFilterQuerySchema),
+  getPaymentAnalyticsController
+);
+router.get(
+  '/analytics/notifications',
+  validateRequest(analyticsFilterQuerySchema),
+  getNotificationAnalyticsController
+);
+router.get(
+  '/analytics/growth',
+  validateRequest(analyticsFilterQuerySchema),
+  getGrowthAnalyticsController
+);
 
 // Audit logs (ADMIN & SUPER_ADMIN)
 router.get(
