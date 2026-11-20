@@ -8,6 +8,8 @@ import {
   PaymentPurpose,
   RefundStatus,
   UserRole,
+  NotificationType,
+  IdempotencyOperation,
 } from '../../generated/prisma/enums.js';
 import type { AuthUser } from '../../types/index.js';
 import type {
@@ -15,6 +17,7 @@ import type {
   InitiatePaymentResult,
   PaymentQueryDTO,
   RefundPaymentDTO,
+  RefundQueryDTO,
   RefundRecordResponse,
   PaymentDetailResponse,
   PaymentStatisticsResponse,
@@ -29,6 +32,7 @@ import {
   generateTransactionId,
   toPaymentDetailResponse,
   toRefundRecordResponse,
+  validatePaymentTransition,
 } from './payment.utils.js';
 import { SSLCommerzProvider } from './providers/sslcommerz.provider.js';
 import { StripeProvider } from './providers/stripe.provider.js';
@@ -36,6 +40,16 @@ import {
   sendPaymentSuccessEmail,
   sendPaymentRefundEmail,
 } from '../../services/email.service.js';
+import { createNotification } from '../../services/notification.service.js';
+import { logAuditEvent } from '../../services/audit.service.js';
+import { checkIdempotency, saveIdempotency } from './payment-idempotency.service.js';
+import {
+  recordWebhookEvent,
+  claimWebhookEvent,
+  markWebhookProcessed,
+  markWebhookFailed,
+  markWebhookIgnored,
+} from './payment-webhook.service.js';
 
 const sslcommerzProvider = new SSLCommerzProvider();
 const stripeProvider = new StripeProvider();
@@ -53,6 +67,19 @@ export const initiatePayment = async (
   data: InitiatePaymentDTO,
   user: AuthUser,
 ): Promise<InitiatePaymentResult> => {
+  // Idempotency check if idempotencyKey provided
+  if (data.idempotencyKey) {
+    const idemp = await checkIdempotency(
+      data.idempotencyKey,
+      IdempotencyOperation.PAYMENT_INITIATION,
+      data,
+      user.id,
+    );
+    if (idemp.hit) {
+      return idemp.body as InitiatePaymentResult;
+    }
+  }
+
   const provider = data.provider;
   const currency = (data.currency || (provider === PaymentProvider.SSLCOMMERZ ? 'BDT' : 'USD')).toUpperCase();
 
@@ -62,7 +89,7 @@ export const initiatePayment = async (
     throw new AppError(
       httpStatus.BAD_REQUEST,
       `Currency '${currency}' is not supported by provider '${provider}'. Supported: ${supportedCurrencies.join(', ')}`,
-      PAYMENT_ERROR_CODES.PAYMENT_CURRENCY_MISMATCH
+      PAYMENT_ERROR_CODES.PAYMENT_CURRENCY_MISMATCH,
     );
   }
 
@@ -75,7 +102,7 @@ export const initiatePayment = async (
     throw new AppError(
       httpStatus.BAD_REQUEST,
       `Payment amount for ${currency} must be between ${minAmount} and ${maxAmount}`,
-      PAYMENT_ERROR_CODES.PAYMENT_AMOUNT_MISMATCH
+      PAYMENT_ERROR_CODES.PAYMENT_AMOUNT_MISMATCH,
     );
   }
 
@@ -105,13 +132,13 @@ export const initiatePayment = async (
           ipnUrl: `${backendBase}/api/v1/payments/sslcommerz/ipn`,
         }
       : {
-          successUrl: `${frontendBase}/payment/success?session_id={CHECKOUT_SESSION_ID}&transaction_id=${transactionId}`,
-          failUrl: `${frontendBase}/payment/fail?transaction_id=${transactionId}`,
-          cancelUrl: `${frontendBase}/payment/cancel?transaction_id=${transactionId}`,
+          successUrl: `${frontendBase}/payment/success?transactionId=${transactionId}`,
+          failUrl: `${frontendBase}/payment/failed?transactionId=${transactionId}`,
+          cancelUrl: `${frontendBase}/payment/cancelled?transactionId=${transactionId}`,
         };
 
-  // 6. Record pending payment in database
-  const payment = await prisma.payment.create({
+  // 6. Pre-create PENDING payment record in database
+  const createdPayment = await prisma.payment.create({
     data: {
       userId: user.id,
       bloodRequestId: data.bloodRequestId || null,
@@ -121,61 +148,73 @@ export const initiatePayment = async (
       provider,
       status: PaymentStatus.PENDING,
       transactionId,
-      description: data.description || 'PulseBridge Voluntary Platform Support',
-      metadata: {
-        idempotencyKey: data.idempotencyKey || null,
-        clientIp: null,
-      },
+      description: data.description || 'Voluntary Platform Contribution',
     },
   });
 
-  // 7. Request payment session from provider
+  await logAuditEvent({
+    actorId: user.id,
+    action: 'PAYMENT_CREATED',
+    entity: 'Payment',
+    entityId: createdPayment.id,
+    metadata: { provider, amount, currency, transactionId },
+  });
+
+  // 7. Call provider session initiation
   const providerInstance = getPaymentProviderInstance(provider);
   let sessionResult;
-
   try {
     sessionResult = await providerInstance.initiateSession({
-      paymentId: payment.id,
+      paymentId: createdPayment.id,
       transactionId,
       amount,
       currency,
-      description: payment.description || undefined,
+      description: data.description,
       user: {
         id: user.id,
-        name: user.name || 'PulseBridge Supporter',
+        name: user.name,
         email: user.email,
         phone: user.phone,
       },
       callbackUrls,
       metadata: {
-        paymentId: payment.id,
-        transactionId,
+        paymentId: createdPayment.id,
+        userId: user.id,
+        purpose: data.paymentPurpose || PaymentPurpose.PLATFORM_SUPPORT,
       },
     });
   } catch (err: unknown) {
-    // Record initiation failure
     await prisma.payment.update({
-      where: { id: payment.id },
+      where: { id: createdPayment.id },
       data: {
         status: PaymentStatus.FAILED,
         failedAt: new Date(),
-        failedReason: err instanceof Error ? err.message : 'Provider session initiation failed',
+        failedReason: (err as Error).message || 'Provider session initiation failed',
       },
     });
     throw err;
   }
 
-  // 8. Update payment with session details
+  // 8. Update payment record with provider session references
   const updated = await prisma.payment.update({
-    where: { id: payment.id },
+    where: { id: createdPayment.id },
     data: {
       paymentUrl: sessionResult.paymentUrl,
       paymentSessionId: sessionResult.providerSessionId || null,
       providerTransactionId: sessionResult.providerTransactionId || null,
+      status: PaymentStatus.PENDING,
     },
   });
 
-  return {
+  await logAuditEvent({
+    actorId: user.id,
+    action: 'PAYMENT_SESSION_CREATED',
+    entity: 'Payment',
+    entityId: updated.id,
+    metadata: { paymentUrl: sessionResult.paymentUrl, sessionId: sessionResult.providerSessionId },
+  });
+
+  const result: InitiatePaymentResult = {
     paymentId: updated.id,
     transactionId: updated.transactionId || transactionId,
     provider: updated.provider,
@@ -184,6 +223,289 @@ export const initiatePayment = async (
     status: updated.status,
     paymentUrl: sessionResult.paymentUrl,
   };
+
+  if (data.idempotencyKey) {
+    await saveIdempotency(
+      data.idempotencyKey,
+      IdempotencyOperation.PAYMENT_INITIATION,
+      data,
+      httpStatus.CREATED,
+      result,
+      user.id,
+      updated.id,
+    );
+  }
+
+  return result;
+};
+
+/**
+ * Provider-specific verification for SSLCommerz.
+ */
+export const verifySSLCommerzPayment = async (
+  tranId: string,
+  valId?: string,
+  rawPayload?: Record<string, unknown>,
+) => {
+  const provider = getPaymentProviderInstance(PaymentProvider.SSLCOMMERZ);
+  return provider.verifyPayment({
+    transactionId: tranId,
+    valId,
+    rawPayload,
+  });
+};
+
+/**
+ * Provider-specific verification for Stripe.
+ */
+export const verifyStripePayment = async (
+  sessionIdOrPaymentIntentId: string,
+  transactionId?: string,
+) => {
+  const provider = getPaymentProviderInstance(PaymentProvider.STRIPE);
+  return provider.verifyPayment({
+    transactionId: transactionId || '',
+    sessionReference: sessionIdOrPaymentIntentId,
+    providerTransactionId: sessionIdOrPaymentIntentId.startsWith('pi_') ? sessionIdOrPaymentIntentId : undefined,
+  });
+};
+
+/**
+ * Atomically processes verified payment success within a database transaction.
+ * Strictly executes external email and notification dispatches POST-COMMIT.
+ */
+export const processVerifiedPayment = async (
+  paymentId: string,
+  verification: {
+    verified: boolean;
+    status: PaymentStatus;
+    providerTransactionId?: string;
+    amount: number;
+    currency: string;
+    paidAt?: Date;
+    failureReason?: string;
+    rawResponse?: unknown;
+  },
+  actorId?: string,
+): Promise<PaymentDetailResponse> => {
+  const now = new Date();
+
+  // 1. Transactional state progression
+  const updated = await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: paymentId },
+      include: { user: true, refunds: true },
+    });
+
+    if (!payment) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Payment record not found', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
+    }
+
+    // Already completed: idempotent return
+    if (payment.status === PaymentStatus.PAID || payment.status === PaymentStatus.SUCCESS) {
+      return payment;
+    }
+
+    // If verification was not successful, update to FAILED conditionally
+    if (!verification.verified || (verification.status !== PaymentStatus.PAID && verification.status !== PaymentStatus.SUCCESS)) {
+      validatePaymentTransition(payment.status, PaymentStatus.FAILED);
+      const failed = await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.FAILED,
+          failedAt: now,
+          failedReason: verification.failureReason || 'Provider verification rejected transaction',
+        },
+        include: { user: true, refunds: true },
+      });
+      return failed;
+    }
+
+    // Validate expected amount against verified amount (tolerance 0.01)
+    if (Math.abs(Number(payment.amount) - verification.amount) > 0.01) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Payment amount mismatch: expected ${payment.amount}, verified ${verification.amount}`,
+        PAYMENT_ERROR_CODES.PAYMENT_AMOUNT_MISMATCH,
+      );
+    }
+
+    // Validate expected currency against verified currency
+    if (payment.currency.toUpperCase() !== verification.currency.toUpperCase()) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Payment currency mismatch: expected ${payment.currency}, verified ${verification.currency}`,
+        PAYMENT_ERROR_CODES.PAYMENT_CURRENCY_MISMATCH,
+      );
+    }
+
+    // Validate transition
+    validatePaymentTransition(payment.status, PaymentStatus.PAID);
+
+    const paid = await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: PaymentStatus.PAID,
+        paidAt: verification.paidAt || now,
+        providerTransactionId: verification.providerTransactionId || payment.providerTransactionId,
+      },
+      include: { user: true, refunds: true },
+    });
+
+    return paid;
+  });
+
+  // 2. Post-commit operations (Emails, In-App Notifications, Audit Logs)
+  if (updated.status === PaymentStatus.PAID || updated.status === PaymentStatus.SUCCESS) {
+    await logAuditEvent({
+      actorId: actorId || updated.userId,
+      action: 'PAYMENT_SUCCEEDED',
+      entity: 'Payment',
+      entityId: updated.id,
+      metadata: {
+        amount: Number(updated.amount),
+        currency: updated.currency,
+        provider: updated.provider,
+        transactionId: updated.transactionId,
+        providerTransactionId: updated.providerTransactionId,
+      },
+    });
+
+    if (updated.user?.email) {
+      sendPaymentSuccessEmail(updated.user.email, {
+        name: updated.user.name,
+        invoiceId: updated.transactionId || updated.id,
+        amount: `${updated.currency} ${Number(updated.amount).toFixed(2)}`,
+        purpose: updated.paymentPurpose,
+        paymentMethod: updated.provider === PaymentProvider.SSLCOMMERZ ? 'SSLCommerz' : 'Stripe Card',
+        date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      }).catch((err) => console.warn('[Email] Success email dispatch error:', err.message));
+    }
+
+    createNotification({
+      userId: updated.userId,
+      type: NotificationType.PAYMENT,
+      title: 'Payment Successful',
+      message: `Your payment of ${updated.currency} ${Number(updated.amount).toFixed(2)} for ${updated.paymentPurpose} was processed successfully. Thank you for supporting PulseBridge!`,
+      metadata: { paymentId: updated.id, transactionId: updated.transactionId },
+    }).catch(() => {});
+  } else if (updated.status === PaymentStatus.FAILED) {
+    await logAuditEvent({
+      actorId: actorId || updated.userId,
+      action: 'PAYMENT_FAILED',
+      entity: 'Payment',
+      entityId: updated.id,
+      metadata: { paymentId: updated.id, reason: updated.failedReason },
+    });
+  }
+
+  return toPaymentDetailResponse(updated, UserRole.ADMIN, true);
+};
+
+/**
+ * Reconciles and verifies a payment status directly with the upstream provider.
+ */
+export const verifyPayment = async (
+  paymentId: string,
+  actor: AuthUser,
+  idempotencyKey?: string,
+): Promise<PaymentDetailResponse> => {
+  // Check idempotency if key provided
+  if (idempotencyKey) {
+    const idemp = await checkIdempotency(
+      idempotencyKey,
+      IdempotencyOperation.PAYMENT_VERIFICATION,
+      { paymentId },
+      actor.id,
+    );
+    if (idemp.hit) {
+      return idemp.body as PaymentDetailResponse;
+    }
+  }
+
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { user: true, refunds: true },
+  });
+
+  if (!payment) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Payment record not found', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
+  }
+
+  const isOwner = payment.userId === actor.id;
+  const isAdmin = actor.role === UserRole.ADMIN || actor.role === UserRole.SUPER_ADMIN;
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to view or verify this payment', PAYMENT_ERROR_CODES.PAYMENT_NOT_AUTHORIZED);
+  }
+
+  // If already paid, return reconciled status
+  if (payment.status === PaymentStatus.PAID || payment.status === PaymentStatus.SUCCESS) {
+    const res = toPaymentDetailResponse(payment, actor.role, isOwner);
+    if (idempotencyKey) {
+      await saveIdempotency(idempotencyKey, IdempotencyOperation.PAYMENT_VERIFICATION, { paymentId }, httpStatus.OK, res, actor.id, paymentId);
+    }
+    return res;
+  }
+
+  await logAuditEvent({
+    actorId: actor.id,
+    action: 'PAYMENT_VERIFICATION_STARTED',
+    entity: 'Payment',
+    entityId: payment.id,
+  });
+
+  // Call provider validation
+  const provider = getPaymentProviderInstance(payment.provider);
+  const verification = await provider.verifyPayment({
+    transactionId: payment.transactionId || '',
+    providerTransactionId: payment.providerTransactionId || undefined,
+    sessionReference: payment.paymentSessionId || undefined,
+  });
+
+  const result = await processVerifiedPayment(payment.id, verification, actor.id);
+
+  if (idempotencyKey) {
+    await saveIdempotency(idempotencyKey, IdempotencyOperation.PAYMENT_VERIFICATION, { paymentId }, httpStatus.OK, result, actor.id, paymentId);
+  }
+
+  return result;
+};
+
+export const verifyPaymentById = verifyPayment;
+
+/**
+ * Reconciles payment status against provider gateway.
+ */
+export const reconcilePaymentStatus = async (paymentId: string): Promise<PaymentDetailResponse> => {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { user: true, refunds: true },
+  });
+
+  if (!payment) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Payment not found for reconciliation', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
+  }
+
+  const provider = getPaymentProviderInstance(payment.provider);
+  const verification = await provider.verifyPayment({
+    transactionId: payment.transactionId || '',
+    providerTransactionId: payment.providerTransactionId || undefined,
+    sessionReference: payment.paymentSessionId || undefined,
+  });
+
+  if (verification.verified && (verification.status === PaymentStatus.PAID || verification.status === PaymentStatus.SUCCESS)) {
+    const res = await processVerifiedPayment(payment.id, verification);
+    await logAuditEvent({
+      action: 'PAYMENT_RECONCILED',
+      entity: 'Payment',
+      entityId: payment.id,
+      metadata: { reconciledStatus: 'PAID' },
+    });
+    return res;
+  }
+
+  return toPaymentDetailResponse(payment, UserRole.ADMIN, true);
 };
 
 /**
@@ -212,53 +534,8 @@ export const handleSSLCommerzSuccess = async (body: Record<string, unknown>) => 
   }
 
   // Server-to-server validation with SSLCommerz API
-  const verification = await sslcommerzProvider.verifyPayment({
-    transactionId: tranId,
-    valId,
-    rawPayload: body,
-  });
-
-  if (!verification.verified || verification.status !== PaymentStatus.PAID) {
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: PaymentStatus.FAILED,
-        failedAt: new Date(),
-        failedReason: verification.failureReason || 'SSLCommerz validation failed',
-      },
-    });
-    throw new AppError(httpStatus.BAD_REQUEST, 'SSLCommerz transaction validation failed');
-  }
-
-  // Validate amount consistency
-  if (Math.abs(Number(payment.amount) - verification.amount) > 0.01) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Paid amount mismatch with recorded payment');
-  }
-
-  const now = new Date();
-  const updated = await prisma.payment.update({
-    where: { id: payment.id },
-    data: {
-      status: PaymentStatus.PAID,
-      paidAt: verification.paidAt || now,
-      providerTransactionId: verification.providerTransactionId || valId,
-    },
-    include: { user: true },
-  });
-
-  // Send confirmation email outside transaction
-  if (payment.user?.email) {
-    sendPaymentSuccessEmail(payment.user.email, {
-      name: payment.user.name,
-      invoiceId: tranId,
-      amount: `${payment.currency} ${Number(payment.amount).toFixed(2)}`,
-      purpose: payment.paymentPurpose,
-      paymentMethod: 'SSLCommerz',
-      date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    }).catch((err) => console.warn('[Email] Payment success email dispatch error:', err.message));
-  }
-
-  return toPaymentDetailResponse(updated, UserRole.ADMIN, true);
+  const verification = await verifySSLCommerzPayment(tranId, valId, body);
+  return processVerifiedPayment(payment.id, verification);
 };
 
 /**
@@ -271,7 +548,7 @@ export const handleSSLCommerzFail = async (body: Record<string, unknown>) => {
   const payment = await prisma.payment.findUnique({ where: { transactionId: tranId } });
   if (!payment) return null;
 
-  // Never overwrite already successful payments
+  // Never overwrite already successful or paid payment
   if (payment.status === PaymentStatus.PAID || payment.status === PaymentStatus.SUCCESS) {
     return toPaymentDetailResponse(payment, UserRole.ADMIN, true);
   }
@@ -281,8 +558,15 @@ export const handleSSLCommerzFail = async (body: Record<string, unknown>) => {
     data: {
       status: PaymentStatus.FAILED,
       failedAt: new Date(),
-      failedReason: String(body.error || 'Payment failed at SSLCommerz gateway'),
+      failedReason: String(body.error || body.failedreason || 'Payment failed at SSLCommerz'),
     },
+  });
+
+  await logAuditEvent({
+    action: 'PAYMENT_FAILED',
+    entity: 'Payment',
+    entityId: updated.id,
+    metadata: { reason: updated.failedReason },
   });
 
   return toPaymentDetailResponse(updated, UserRole.ADMIN, true);
@@ -298,6 +582,7 @@ export const handleSSLCommerzCancel = async (body: Record<string, unknown>) => {
   const payment = await prisma.payment.findUnique({ where: { transactionId: tranId } });
   if (!payment) return null;
 
+  // Never overwrite already successful or paid payment
   if (payment.status === PaymentStatus.PAID || payment.status === PaymentStatus.SUCCESS) {
     return toPaymentDetailResponse(payment, UserRole.ADMIN, true);
   }
@@ -309,6 +594,12 @@ export const handleSSLCommerzCancel = async (body: Record<string, unknown>) => {
       cancelledAt: new Date(),
       failedReason: 'Payment cancelled by user',
     },
+  });
+
+  await logAuditEvent({
+    action: 'PAYMENT_CANCELLED',
+    entity: 'Payment',
+    entityId: updated.id,
   });
 
   return toPaymentDetailResponse(updated, UserRole.ADMIN, true);
@@ -339,34 +630,32 @@ export const handleSSLCommerzIPN = async (body: Record<string, unknown>) => {
     return { success: true, message: 'Payment already processed' };
   }
 
+  const ipnEventId = valId ? `ssl_ipn_${valId}` : `ssl_ipn_${tranId}_${Date.now()}`;
+  const { isDuplicate } = await recordWebhookEvent(
+    PaymentProvider.SSLCOMMERZ,
+    ipnEventId,
+    'sslcommerz.ipn',
+    body,
+    payment.id,
+  );
+
+  if (isDuplicate) {
+    return { success: true, message: 'Duplicate IPN event' };
+  }
+
+  await claimWebhookEvent(ipnEventId);
+
   // Validate via official server API
-  const verification = await sslcommerzProvider.verifyPayment({
-    transactionId: tranId,
-    valId,
-    rawPayload: body,
-  });
+  const verification = await verifySSLCommerzPayment(tranId, valId, body);
 
   if (verification.verified && verification.status === PaymentStatus.PAID) {
-    const now = new Date();
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: PaymentStatus.PAID,
-        paidAt: now,
-        providerTransactionId: verification.providerTransactionId || valId,
-      },
-    });
-
-    if (payment.user?.email) {
-      sendPaymentSuccessEmail(payment.user.email, {
-        name: payment.user.name,
-        invoiceId: tranId,
-        amount: `${payment.currency} ${Number(payment.amount).toFixed(2)}`,
-        purpose: payment.paymentPurpose,
-        paymentMethod: 'SSLCommerz IPN',
-        date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-      }).catch((err) => console.warn('[Email] IPN email dispatch error:', err.message));
-    }
+    await processVerifiedPayment(payment.id, verification);
+    await markWebhookProcessed(ipnEventId, payment.id);
+  } else if (verification.status === PaymentStatus.PENDING) {
+    // Transient network failure: keep event for retry without failing payment
+    await markWebhookFailed(ipnEventId, verification.failureReason || 'Transient IPN validation failure', false);
+  } else {
+    await markWebhookFailed(ipnEventId, verification.failureReason || 'IPN validation failed', true);
   }
 
   return { success: true, verified: verification.verified };
@@ -396,146 +685,141 @@ export const handleStripeWebhook = async (
   const eventId = String(event.id || '');
   const eventType = String(event.type || '');
 
-  // 2. Webhook idempotency check via database unique event record
+  // 2. Durable webhook event registration & idempotency check
   if (eventId) {
-    const existingEvent = await prisma.paymentWebhookEvent.findUnique({ where: { eventId } });
-    if (existingEvent) {
+    const { isDuplicate } = await recordWebhookEvent(
+      PaymentProvider.STRIPE,
+      eventId,
+      eventType,
+      event,
+    );
+
+    if (isDuplicate) {
       return { received: true, duplicate: true, idempotent: true };
     }
 
-    await prisma.paymentWebhookEvent.create({
-      data: {
-        eventId,
-        provider: PaymentProvider.STRIPE,
-        eventType,
-        payload: event as any,
-      },
-    });
+    const claimed = await claimWebhookEvent(eventId);
+    if (!claimed) {
+      return { received: true, duplicate: true, inFlight: true };
+    }
   }
 
   const eventData = (event.data as { object: Record<string, unknown> })?.object || {};
 
-  // 3. Process supported Stripe event types
-  if (eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded') {
-    const paymentId = (eventData.metadata as Record<string, string>)?.paymentId;
-    const transactionId = (eventData.metadata as Record<string, string>)?.transactionId || (eventData.client_reference_id as string);
-    const sessionId = String(eventData.id || '');
+  try {
+    // 3. Process supported Stripe event types
+    if (eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded') {
+      const paymentId = (eventData.metadata as Record<string, string>)?.paymentId;
+      const transactionId = (eventData.metadata as Record<string, string>)?.transactionId || (eventData.client_reference_id as string);
+      const sessionId = String(eventData.id || '');
 
-    const payment = await prisma.payment.findFirst({
-      where: {
-        OR: [
-          ...(paymentId ? [{ id: paymentId }] : []),
-          ...(transactionId ? [{ transactionId }] : []),
-          { paymentSessionId: sessionId },
-        ],
-      },
-      include: { user: true },
-    });
+      const payment = await prisma.payment.findFirst({
+        where: {
+          OR: [
+            ...(paymentId ? [{ id: paymentId }] : []),
+            ...(transactionId ? [{ transactionId }] : []),
+            { paymentSessionId: sessionId },
+          ],
+        },
+        include: { user: true },
+      });
 
-    if (payment && payment.status !== PaymentStatus.PAID && payment.status !== PaymentStatus.SUCCESS) {
-      const now = new Date();
-      const updated = await prisma.payment.update({
-        where: { id: payment.id },
-        data: {
+      if (payment) {
+        const verification = {
+          verified: true,
           status: PaymentStatus.PAID,
-          paidAt: now,
           providerTransactionId: eventData.payment_intent ? String(eventData.payment_intent) : sessionId,
-        },
-      });
+          amount: Number(eventData.amount_total || 0) / 100,
+          currency: String(eventData.currency || 'USD').toUpperCase(),
+          paidAt: new Date(),
+        };
 
-      if (payment.user?.email) {
-        sendPaymentSuccessEmail(payment.user.email, {
-          name: payment.user.name,
-          invoiceId: payment.transactionId || sessionId,
-          amount: `${payment.currency} ${Number(payment.amount).toFixed(2)}`,
-          purpose: payment.paymentPurpose,
-          paymentMethod: 'Stripe Card',
-          date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        }).catch((err) => console.warn('[Email] Stripe success email error:', err.message));
+        const updated = await processVerifiedPayment(payment.id, verification);
+        if (eventId) await markWebhookProcessed(eventId, payment.id);
+        return { received: true, paymentId: updated.id, status: updated.status };
       }
-
-      return { received: true, paymentId: updated.id, status: updated.status };
-    }
-  } else if (
-    eventType === 'checkout.session.async_payment_failed' ||
-    eventType === 'payment_intent.payment_failed'
-  ) {
-    const paymentIntentId = String(eventData.id || '');
-    const payment = await prisma.payment.findFirst({
-      where: {
-        OR: [{ providerTransactionId: paymentIntentId }, { paymentSessionId: paymentIntentId }],
-      },
-    });
-
-    if (payment && payment.status !== PaymentStatus.PAID && payment.status !== PaymentStatus.SUCCESS) {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: PaymentStatus.FAILED,
-          failedAt: new Date(),
-          failedReason: 'Stripe payment failed',
+    } else if (eventType === 'payment_intent.succeeded') {
+      const piId = String(eventData.id || '');
+      const payment = await prisma.payment.findFirst({
+        where: {
+          OR: [{ providerTransactionId: piId }, { paymentSessionId: piId }],
         },
       });
+
+      if (payment) {
+        const verification = {
+          verified: true,
+          status: PaymentStatus.PAID,
+          providerTransactionId: piId,
+          amount: Number(eventData.amount || 0) / 100,
+          currency: String(eventData.currency || 'USD').toUpperCase(),
+          paidAt: new Date(),
+        };
+
+        const updated = await processVerifiedPayment(payment.id, verification);
+        if (eventId) await markWebhookProcessed(eventId, payment.id);
+        return { received: true, paymentId: updated.id, status: updated.status };
+      }
+    } else if (
+      eventType === 'checkout.session.async_payment_failed' ||
+      eventType === 'payment_intent.payment_failed'
+    ) {
+      const targetId = String(eventData.id || '');
+      const payment = await prisma.payment.findFirst({
+        where: {
+          OR: [{ providerTransactionId: targetId }, { paymentSessionId: targetId }],
+        },
+      });
+
+      if (payment && payment.status !== PaymentStatus.PAID && payment.status !== PaymentStatus.SUCCESS) {
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.FAILED,
+            failedAt: new Date(),
+            failedReason: 'Stripe payment failed event received',
+          },
+        });
+      }
+      if (eventId) await markWebhookProcessed(eventId, payment?.id);
+    } else if (eventType === 'charge.refunded' || eventType === 'charge.refund.updated') {
+      const piId = eventData.payment_intent ? String(eventData.payment_intent) : String(eventData.id || '');
+      const payment = await prisma.payment.findFirst({
+        where: {
+          OR: [{ providerTransactionId: piId }, { paymentSessionId: piId }],
+        },
+      });
+
+      if (payment) {
+        const amountRefunded = Number(eventData.amount_refunded || 0) / 100;
+        const totalPaid = Number(payment.amount);
+        const nextStatus = amountRefunded >= totalPaid - 0.001 ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
+
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: nextStatus,
+            refundAmount: amountRefunded,
+            refundedAt: new Date(),
+          },
+        });
+        if (eventId) await markWebhookProcessed(eventId, payment.id);
+        return { received: true, paymentId: payment.id, status: nextStatus };
+      }
+    } else {
+      if (eventId) await markWebhookIgnored(eventId, `Unhandled event type: ${eventType}`);
     }
-  }
 
-  return { received: true };
+    if (eventId) await markWebhookProcessed(eventId);
+    return { received: true };
+  } catch (err) {
+    if (eventId) await markWebhookFailed(eventId, (err as Error).message);
+    throw err;
+  }
 };
 
 /**
- * Reconciles and verifies a payment status directly with the upstream provider.
- */
-export const verifyPaymentById = async (
-  paymentId: string,
-  actor: AuthUser,
-): Promise<PaymentDetailResponse> => {
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: { user: true, refunds: true },
-  });
-
-  if (!payment) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Payment record not found', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
-  }
-
-  const isOwner = payment.userId === actor.id;
-  const isAdmin = actor.role === UserRole.ADMIN || actor.role === UserRole.SUPER_ADMIN;
-
-  if (!isOwner && !isAdmin) {
-    throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to view or verify this payment', PAYMENT_ERROR_CODES.PAYMENT_NOT_AUTHORIZED);
-  }
-
-  // If already paid, return reconciled status
-  if (payment.status === PaymentStatus.PAID || payment.status === PaymentStatus.SUCCESS) {
-    return toPaymentDetailResponse(payment, actor.role, isOwner);
-  }
-
-  // Call provider validation
-  const provider = getPaymentProviderInstance(payment.provider);
-  const verification = await provider.verifyPayment({
-    transactionId: payment.transactionId || '',
-    providerTransactionId: payment.providerTransactionId || undefined,
-    sessionReference: payment.paymentSessionId || undefined,
-  });
-
-  if (verification.verified && verification.status === PaymentStatus.PAID) {
-    const updated = await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: PaymentStatus.PAID,
-        paidAt: verification.paidAt || new Date(),
-        providerTransactionId: verification.providerTransactionId || payment.providerTransactionId,
-      },
-      include: { user: true, refunds: true },
-    });
-    return toPaymentDetailResponse(updated, actor.role, isOwner);
-  }
-
-  return toPaymentDetailResponse(payment, actor.role, isOwner);
-};
-
-/**
- * Executes a refund on a paid payment (Admin only).
+ * Concurrency-safe atomic refund execution preventing over-refunds.
  */
 export const refundPayment = async (
   paymentId: string,
@@ -546,108 +830,365 @@ export const refundPayment = async (
     throw new AppError(httpStatus.FORBIDDEN, 'Only authorized administrators can initiate refunds', PAYMENT_ERROR_CODES.PAYMENT_NOT_AUTHORIZED);
   }
 
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: { refunds: true, user: true },
-  });
-
-  if (!payment) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Payment not found', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
-  }
-
-  if (payment.status !== PaymentStatus.PAID && payment.status !== PaymentStatus.SUCCESS && payment.status !== PaymentStatus.PARTIALLY_REFUNDED) {
-    throw new AppError(httpStatus.BAD_REQUEST, `Cannot refund a payment with status '${payment.status}'`, PAYMENT_ERROR_CODES.REFUND_NOT_ALLOWED);
-  }
-
-  const totalPaid = Number(payment.amount);
-  const currentRefunded = Number(payment.refundAmount || 0);
-  const refundableRemaining = Math.max(0, totalPaid - currentRefunded);
-
-  if (refundableRemaining <= 0) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Payment is already fully refunded', PAYMENT_ERROR_CODES.PAYMENT_ALREADY_REFUNDED);
-  }
-
-  const refundAmount = data.amount ? Number(data.amount) : refundableRemaining;
-
-  if (isNaN(refundAmount) || refundAmount <= 0) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid refund amount requested');
-  }
-
-  if (refundAmount > refundableRemaining + 0.001) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Requested refund amount (${refundAmount}) exceeds refundable remaining balance (${refundableRemaining.toFixed(2)})`,
-      PAYMENT_ERROR_CODES.REFUND_AMOUNT_EXCEEDED
+  // 1. Idempotency check
+  if (data.idempotencyKey) {
+    const idemp = await checkIdempotency(
+      data.idempotencyKey,
+      IdempotencyOperation.REFUND_INITIATION,
+      { paymentId, amount: data.amount, reason: data.reason },
+      actor.id,
     );
+    if (idemp.hit) {
+      return idemp.body as PaymentDetailResponse;
+    }
   }
 
-  // Execute provider refund call
-  const provider = getPaymentProviderInstance(payment.provider);
-  const refundResult = await provider.processRefund({
-    payment: {
-      id: payment.id,
-      transactionId: payment.transactionId,
-      providerTransactionId: payment.providerTransactionId,
-      amount: totalPaid,
-      currency: payment.currency,
-      paymentSessionId: payment.paymentSessionId,
-    },
-    refundAmount,
-    reason: data.reason,
-  });
+  // 2. Phase 1: Database transaction to reserve refund amount and record PROCESSING refund
+  const { payment, refundRecord, refundAmount } = await prisma.$transaction(async (tx) => {
+    // Acquire PostgreSQL exclusive row lock to serialize concurrent refund requests
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "payments" WHERE "id" = $1 FOR UPDATE`, paymentId);
 
-  if (!refundResult.success) {
-    throw new AppError(
-      httpStatus.BAD_GATEWAY,
-      `Provider refund processing failed: ${refundResult.failureReason || 'Provider rejected refund'}`,
-      PAYMENT_ERROR_CODES.REFUND_PROCESSING_FAILED
-    );
-  }
-
-  const now = new Date();
-  const nextRefundedAmount = currentRefunded + refundAmount;
-  const nextStatus = nextRefundedAmount >= totalPaid - 0.001 ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
-
-  const result = await prisma.$transaction(async (tx) => {
-    // Record refund entity
-    await tx.paymentRefund.create({
-      data: {
-        paymentId: payment.id,
-        amount: refundAmount,
-        reason: data.reason,
-        status: refundResult.status,
-        providerRefundId: refundResult.providerRefundId || null,
-        actorId: actor.id,
-      },
-    });
-
-    const updatedPayment = await tx.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: nextStatus,
-        refundAmount: nextRefundedAmount,
-        refundedAt: now,
-      },
+    const p = await tx.payment.findUnique({
+      where: { id: paymentId },
       include: { refunds: true, user: true },
     });
 
-    return updatedPayment;
+    if (!p) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Payment not found', PAYMENT_ERROR_CODES.PAYMENT_NOT_FOUND);
+    }
+
+    if (
+      p.status !== PaymentStatus.PAID &&
+      p.status !== PaymentStatus.SUCCESS &&
+      p.status !== PaymentStatus.PARTIALLY_REFUNDED &&
+      p.status !== PaymentStatus.REFUND_PENDING
+    ) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Cannot refund a payment with status '${p.status}'`, PAYMENT_ERROR_CODES.REFUND_NOT_ALLOWED);
+    }
+
+    const totalPaid = Number(p.amount);
+    // Active reservations = SUCCEEDED + PROCESSING + PENDING
+    const activeRefunds = p.refunds.filter(
+      (r) =>
+        r.status === RefundStatus.SUCCESS ||
+        r.status === RefundStatus.SUCCEEDED ||
+        r.status === RefundStatus.PROCESSING ||
+        r.status === RefundStatus.PENDING,
+    );
+    const totalReserved = activeRefunds.reduce((sum, r) => sum + Number(r.amount), 0);
+    const refundableRemaining = Math.max(0, totalPaid - totalReserved);
+
+    if (refundableRemaining <= 0) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Payment is already fully refunded or has pending refund reservations', PAYMENT_ERROR_CODES.PAYMENT_ALREADY_REFUNDED);
+    }
+
+    const amountToRefund = data.amount ? Number(data.amount) : refundableRemaining;
+
+    if (isNaN(amountToRefund) || amountToRefund <= 0) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid refund amount requested', PAYMENT_ERROR_CODES.REFUND_AMOUNT_INVALID);
+    }
+
+    if (amountToRefund > refundableRemaining + 0.001) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Requested refund amount (${amountToRefund}) exceeds available refundable balance (${refundableRemaining.toFixed(2)})`,
+        PAYMENT_ERROR_CODES.REFUND_AMOUNT_EXCEEDED,
+      );
+    }
+
+    // Create refund reservation record with PROCESSING status
+    const refund = await tx.paymentRefund.create({
+      data: {
+        paymentId: p.id,
+        amount: amountToRefund,
+        currency: p.currency,
+        reason: data.reason,
+        status: RefundStatus.PROCESSING,
+        actorId: actor.id,
+        idempotencyKey: data.idempotencyKey || null,
+        requestedAt: new Date(),
+      },
+    });
+
+    // Mark payment as REFUND_PENDING during processing
+    await tx.payment.update({
+      where: { id: p.id },
+      data: { status: PaymentStatus.REFUND_PENDING },
+    });
+
+    return { payment: p, refundRecord: refund, refundAmount: amountToRefund };
   });
 
-  // Send refund notification email if recipient email is available
-  if (result.user?.email) {
-    sendPaymentRefundEmail(result.user.email, {
-      name: result.user.name,
-      invoiceId: result.transactionId || result.id,
-      amount: `${result.currency} ${Number(refundAmount).toFixed(2)}`,
-      totalRefunded: `${result.currency} ${Number(result.refundAmount).toFixed(2)}`,
+  await logAuditEvent({
+    actorId: actor.id,
+    action: 'REFUND_REQUESTED',
+    entity: 'PaymentRefund',
+    entityId: refundRecord.id,
+    metadata: { paymentId, amount: refundAmount, reason: data.reason },
+  });
+
+  // 3. Phase 2: Outside DB transaction - execute upstream provider refund call
+  const provider = getPaymentProviderInstance(payment.provider);
+  let refundResult;
+  try {
+    refundResult = await provider.processRefund({
+      payment: {
+        id: payment.id,
+        transactionId: payment.transactionId,
+        providerTransactionId: payment.providerTransactionId,
+        amount: Number(payment.amount),
+        currency: payment.currency,
+        paymentSessionId: payment.paymentSessionId,
+      },
+      refundAmount,
       reason: data.reason,
-      status: nextStatus,
-      date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    }).catch((err) => console.warn('[Email] Payment refund email dispatch error:', err.message));
+      idempotencyKey: data.idempotencyKey,
+    });
+  } catch (err) {
+    refundResult = {
+      success: false,
+      status: RefundStatus.FAILED,
+      amount: refundAmount,
+      failureReason: (err as Error).message || 'Provider communication failure',
+    };
   }
 
-  return toPaymentDetailResponse(result, actor.role, true);
+  // 4. Phase 3: Update DB with final provider refund outcome
+  const now = new Date();
+  const finalPayment = await prisma.$transaction(async (tx) => {
+    if (refundResult.success && (refundResult.status === RefundStatus.SUCCESS || refundResult.status === RefundStatus.SUCCEEDED)) {
+      await tx.paymentRefund.update({
+        where: { id: refundRecord.id },
+        data: {
+          status: RefundStatus.SUCCESS,
+          processedAt: now,
+          providerRefundId: refundResult.providerRefundId || null,
+        },
+      });
+
+      // Recalculate completed refunds
+      const allCompleted = await tx.paymentRefund.findMany({
+        where: {
+          paymentId: payment.id,
+          status: { in: [RefundStatus.SUCCESS, RefundStatus.SUCCEEDED] },
+        },
+      });
+      const totalCompletedAmount = allCompleted.reduce((sum, r) => sum + Number(r.amount), 0);
+      const isFull = totalCompletedAmount >= Number(payment.amount) - 0.001;
+      const nextStatus = isFull ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
+
+      const updated = await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: nextStatus,
+          refundAmount: totalCompletedAmount,
+          refundedAt: now,
+        },
+        include: { refunds: true, user: true },
+      });
+
+      return updated;
+    } else {
+      // Refund failed at provider: release reservation and revert status if no prior partial refunds
+      await tx.paymentRefund.update({
+        where: { id: refundRecord.id },
+        data: {
+          status: RefundStatus.FAILED,
+          failedAt: now,
+          failureReason: refundResult.failureReason || 'Provider rejected refund',
+        },
+      });
+
+      const priorCompleted = await tx.paymentRefund.count({
+        where: {
+          paymentId: payment.id,
+          status: { in: [RefundStatus.SUCCESS, RefundStatus.SUCCEEDED] },
+        },
+      });
+
+      const revertStatus = priorCompleted > 0 ? PaymentStatus.PARTIALLY_REFUNDED : PaymentStatus.PAID;
+
+      const updated = await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: revertStatus },
+        include: { refunds: true, user: true },
+      });
+
+      return updated;
+    }
+  });
+
+  // 5. Post-commit operations
+  if (refundResult.success) {
+    await logAuditEvent({
+      actorId: actor.id,
+      action: 'REFUND_SUCCEEDED',
+      entity: 'PaymentRefund',
+      entityId: refundRecord.id,
+      metadata: { paymentId, amount: refundAmount, providerRefundId: refundResult.providerRefundId },
+    });
+
+    if (finalPayment.user?.email) {
+      sendPaymentRefundEmail(finalPayment.user.email, {
+        name: finalPayment.user.name,
+        invoiceId: finalPayment.transactionId || finalPayment.id,
+        amount: `${finalPayment.currency} ${Number(refundAmount).toFixed(2)}`,
+        totalRefunded: `${finalPayment.currency} ${Number(finalPayment.refundAmount).toFixed(2)}`,
+        reason: data.reason,
+        status: finalPayment.status,
+        date: now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      }).catch((err) => console.warn('[Email] Payment refund email dispatch error:', err.message));
+    }
+
+    createNotification({
+      userId: finalPayment.userId,
+      type: NotificationType.PAYMENT,
+      title: 'Payment Refund Processed',
+      message: `A refund of ${finalPayment.currency} ${Number(refundAmount).toFixed(2)} has been processed for your payment.`,
+      metadata: { paymentId, refundId: refundRecord.id },
+    }).catch(() => {});
+
+    const res = toPaymentDetailResponse(finalPayment, actor.role, true);
+
+    if (data.idempotencyKey) {
+      await saveIdempotency(
+        data.idempotencyKey,
+        IdempotencyOperation.REFUND_INITIATION,
+        { paymentId, amount: data.amount, reason: data.reason },
+        httpStatus.OK,
+        res,
+        actor.id,
+        paymentId,
+      );
+    }
+
+    return res;
+  } else {
+    await logAuditEvent({
+      actorId: actor.id,
+      action: 'REFUND_FAILED',
+      entity: 'PaymentRefund',
+      entityId: refundRecord.id,
+      metadata: { paymentId, error: refundResult.failureReason },
+    });
+
+    throw new AppError(
+      httpStatus.BAD_GATEWAY,
+      `Provider refund processing failed: ${refundResult.failureReason || 'Provider rejected refund'}`,
+      PAYMENT_ERROR_CODES.REFUND_PROCESSING_FAILED,
+    );
+  }
+};
+
+/**
+ * Retrieves refund by ID with ownership enforcement.
+ */
+export const getRefundById = async (
+  refundId: string,
+  actor: AuthUser,
+): Promise<RefundRecordResponse> => {
+  const refund = await prisma.paymentRefund.findUnique({
+    where: { id: refundId },
+    include: { payment: true },
+  });
+
+  if (!refund) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Refund record not found', PAYMENT_ERROR_CODES.REFUND_NOT_FOUND);
+  }
+
+  const isOwner = refund.payment.userId === actor.id;
+  const isAdmin = actor.role === UserRole.ADMIN || actor.role === UserRole.SUPER_ADMIN;
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to view this refund', PAYMENT_ERROR_CODES.PAYMENT_NOT_AUTHORIZED);
+  }
+
+  return toRefundRecordResponse(refund);
+};
+
+/**
+ * Retrieves paginated refunds for administrators.
+ */
+export const getAdminRefunds = async (
+  query: RefundQueryDTO,
+): Promise<{ data: RefundRecordResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }> => {
+  const page = Math.max(1, Number(query.page || 1));
+  const limit = Math.min(100, Math.max(1, Number(query.limit || 10)));
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+  if (query.status) where.status = query.status;
+  if (query.paymentId) where.paymentId = query.paymentId;
+  if (query.minAmount || query.maxAmount) {
+    where.amount = {};
+    if (query.minAmount) where.amount.gte = query.minAmount;
+    if (query.maxAmount) where.amount.lte = query.maxAmount;
+  }
+  if (query.startDate || query.endDate) {
+    where.createdAt = {};
+    if (query.startDate) where.createdAt.gte = new Date(query.startDate);
+    if (query.endDate) where.createdAt.lte = new Date(query.endDate);
+  }
+
+  const [total, refunds] = await Promise.all([
+    prisma.paymentRefund.count({ where }),
+    prisma.paymentRefund.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: query.sortOrder === 'asc' ? 'asc' : 'desc' },
+      include: { payment: true },
+    }),
+  ]);
+
+  return {
+    data: refunds.map(toRefundRecordResponse),
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+/**
+ * Retries a failed refund for administrators.
+ */
+export const retryFailedRefund = async (
+  refundId: string,
+  actor: AuthUser,
+): Promise<PaymentDetailResponse> => {
+  if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN) {
+    throw new AppError(httpStatus.FORBIDDEN, 'Only authorized administrators can retry refunds', PAYMENT_ERROR_CODES.PAYMENT_NOT_AUTHORIZED);
+  }
+
+  const refund = await prisma.paymentRefund.findUnique({
+    where: { id: refundId },
+    include: { payment: true },
+  });
+
+  if (!refund) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Refund record not found', PAYMENT_ERROR_CODES.REFUND_NOT_FOUND);
+  }
+
+  if (refund.status !== RefundStatus.FAILED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot retry refund with status '${refund.status}'. Only FAILED refunds can be retried.`,
+      PAYMENT_ERROR_CODES.REFUND_NOT_ALLOWED,
+    );
+  }
+
+  return refundPayment(
+    refund.paymentId,
+    actor,
+    {
+      amount: Number(refund.amount),
+      reason: refund.reason || 'Retry of failed refund',
+      idempotencyKey: refund.idempotencyKey || `retry-${refund.id}-${Date.now()}`,
+    },
+  );
 };
 
 /**
@@ -704,9 +1245,9 @@ const queryPayments = async (
   query: PaymentQueryDTO,
   viewerRole: UserRole,
   isPrivileged: boolean,
-) => {
-  const page = Math.max(1, query.page || 1);
-  const limit = Math.min(100, Math.max(1, query.limit || 10));
+): Promise<{ data: PaymentDetailResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }> => {
+  const page = Math.max(1, Number(query.page || 1));
+  const limit = Math.min(100, Math.max(1, Number(query.limit || 10)));
   const skip = (page - 1) * limit;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -717,7 +1258,7 @@ const queryPayments = async (
   if (query.provider) where.provider = query.provider;
   if (query.paymentPurpose) where.paymentPurpose = query.paymentPurpose;
   if (query.currency) where.currency = query.currency.toUpperCase();
-  if (query.transactionId) where.transactionId = { contains: query.transactionId, mode: 'insensitive' };
+  if (query.transactionId) where.transactionId = { contains: query.transactionId };
 
   if (query.startDate || query.endDate) {
     where.createdAt = {};
@@ -731,18 +1272,18 @@ const queryPayments = async (
     if (query.maxAmount !== undefined) where.amount.lte = query.maxAmount;
   }
 
-  const sortBy = query.sortBy || 'createdAt';
-  const sortOrder = query.sortOrder || 'desc';
+  const orderByField = query.sortBy || 'createdAt';
+  const orderDirection = query.sortOrder || 'desc';
 
-  const [payments, total] = await Promise.all([
+  const [total, payments] = await Promise.all([
+    prisma.payment.count({ where }),
     prisma.payment.findMany({
       where,
       skip,
       take: limit,
-      orderBy: { [sortBy]: sortOrder },
+      orderBy: { [orderByField]: orderDirection },
       include: { user: true, refunds: true },
     }),
-    prisma.payment.count({ where }),
   ]);
 
   return {
@@ -751,48 +1292,52 @@ const queryPayments = async (
       page,
       limit,
       total,
-      totalPages: Math.ceil(total / limit) || 1,
+      totalPages: Math.ceil(total / limit),
     },
   };
 };
 
 /**
- * Aggregates payment statistics grouped by currency and provider (never mixes currencies).
+ * Calculates payment financial analytics and metrics.
  */
 export const getAdminPaymentStatistics = async (): Promise<PaymentStatisticsResponse> => {
-  const [totalPayments, successfulPayments, pendingPayments, failedPayments, refundedPayments, allPayments] =
-    await Promise.all([
-      prisma.payment.count(),
-      prisma.payment.count({ where: { status: { in: [PaymentStatus.PAID, PaymentStatus.SUCCESS] } } }),
-      prisma.payment.count({ where: { status: PaymentStatus.PENDING } }),
-      prisma.payment.count({ where: { status: PaymentStatus.FAILED } }),
-      prisma.payment.count({ where: { status: { in: [PaymentStatus.REFUNDED, PaymentStatus.PARTIALLY_REFUNDED] } } }),
-      prisma.payment.findMany({
-        select: {
-          amount: true,
-          currency: true,
-          provider: true,
-          status: true,
-          refundAmount: true,
-        },
-      }),
-    ]);
+  const payments = await prisma.payment.findMany({
+    select: {
+      amount: true,
+      refundAmount: true,
+      currency: true,
+      provider: true,
+      status: true,
+    },
+  });
 
-  const currencyBreakdown: Record<
-    string,
-    { successfulAmount: number; refundedAmount: number; netAmount: number; transactionCount: number }
-  > = {};
+  let totalPayments = 0;
+  let successfulPayments = 0;
+  let pendingPayments = 0;
+  let failedPayments = 0;
+  let refundedPayments = 0;
 
-  const providerBreakdown: Record<
-    PaymentProvider,
-    { totalCount: number; successfulCount: number; currencyTotals: Record<string, number> }
-  > = {
+  const currencyBreakdown: PaymentStatisticsResponse['currencyBreakdown'] = {};
+  const providerBreakdown: PaymentStatisticsResponse['providerBreakdown'] = {
     [PaymentProvider.SSLCOMMERZ]: { totalCount: 0, successfulCount: 0, currencyTotals: {} },
     [PaymentProvider.STRIPE]: { totalCount: 0, successfulCount: 0, currencyTotals: {} },
   };
 
-  for (const p of allPayments) {
-    const cur = p.currency.toUpperCase();
+  for (const p of payments) {
+    totalPayments += 1;
+    const cur = p.currency;
+    const amt = Number(p.amount);
+    const ref = Number(p.refundAmount || 0);
+
+    const isSuccess = p.status === PaymentStatus.PAID || p.status === PaymentStatus.SUCCESS;
+    const isRefund = p.status === PaymentStatus.REFUNDED || p.status === PaymentStatus.PARTIALLY_REFUNDED;
+
+    if (isSuccess || isRefund) successfulPayments += 1;
+    if (p.status === PaymentStatus.PENDING || p.status === PaymentStatus.PROCESSING) pendingPayments += 1;
+    if (p.status === PaymentStatus.FAILED || p.status === PaymentStatus.CANCELLED) failedPayments += 1;
+    if (p.status === PaymentStatus.REFUNDED) refundedPayments += 1;
+
+    // Currency breakdown
     if (!currencyBreakdown[cur]) {
       currencyBreakdown[cur] = {
         successfulAmount: 0,
@@ -803,17 +1348,10 @@ export const getAdminPaymentStatistics = async (): Promise<PaymentStatisticsResp
     }
 
     currencyBreakdown[cur].transactionCount += 1;
-
-    const isSuccess = p.status === PaymentStatus.PAID || p.status === PaymentStatus.SUCCESS;
-    const isRefund = p.status === PaymentStatus.REFUNDED || p.status === PaymentStatus.PARTIALLY_REFUNDED;
-
-    const amt = Number(p.amount);
-    const refAmt = Number(p.refundAmount || 0);
-
     if (isSuccess || isRefund) {
       currencyBreakdown[cur].successfulAmount += amt;
-      currencyBreakdown[cur].refundedAmount += refAmt;
-      currencyBreakdown[cur].netAmount += amt - refAmt;
+      currencyBreakdown[cur].refundedAmount += ref;
+      currencyBreakdown[cur].netAmount = currencyBreakdown[cur].successfulAmount - currencyBreakdown[cur].refundedAmount;
     }
 
     // Provider breakdown
@@ -850,4 +1388,3 @@ export const getPaymentRefunds = async (
   const payment = await getPaymentById(paymentId, actor);
   return payment.refunds || [];
 };
-

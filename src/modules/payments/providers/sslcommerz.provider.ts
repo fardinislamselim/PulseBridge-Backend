@@ -148,6 +148,18 @@ export class SSLCommerzProvider implements IPaymentProvider {
       const statusStr = String(data?.status || '').toUpperCase();
       const isValid = statusStr === 'VALID' || statusStr === 'VALIDATED';
 
+      // Verify store identity if present in response
+      if (storeId && data?.store_id && String(data.store_id) !== String(storeId)) {
+        return {
+          verified: false,
+          status: PaymentStatus.FAILED,
+          amount: Number(data.amount || 0),
+          currency: String(data.currency || 'BDT'),
+          failureReason: 'Store identity mismatch in SSLCommerz verification response',
+          rawResponse: data,
+        };
+      }
+
       if (isValid) {
         return {
           verified: true,
@@ -170,12 +182,13 @@ export class SSLCommerzProvider implements IPaymentProvider {
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'SSLCommerz validation error';
+      // Network failure should NOT mark payment as permanently failed; keep pending for reconciliation
       return {
         verified: false,
-        status: PaymentStatus.FAILED,
+        status: PaymentStatus.PENDING,
         amount: 0,
         currency: 'BDT',
-        failureReason: msg,
+        failureReason: `Network/Gateway unreachable: ${msg}`,
       };
     }
   }

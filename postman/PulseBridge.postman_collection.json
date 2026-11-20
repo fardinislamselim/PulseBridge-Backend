@@ -3734,71 +3734,56 @@
       "name": "09. Payments",
       "item": [
         {
-          "name": "Initiate Payment (SSLCommerz - BDT)",
+          "name": "Verify Payment",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{accessToken}}",
                 "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"SSLCOMMERZ\",\n  \"amount\": 500,\n  \"currency\": \"BDT\",\n  \"paymentPurpose\": \"PLATFORM_SUPPORT\",\n  \"description\": \"Voluntary platform contribution\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/payments/initiate",
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/verify",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "payments",
-                "initiate"
+                "{{paymentId}}",
+                "verify"
               ]
             },
-            "description": "Initiates a payment session via SSLCommerz gateway in Bangladeshi Taka (BDT)."
+            "description": "Proactively verifies and reconciles payment status with the upstream gateway."
           }
         },
         {
-          "name": "Initiate Payment (Stripe - USD)",
+          "name": "Get Payment Status",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{accessToken}}",
                 "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"STRIPE\",\n  \"amount\": 25,\n  \"currency\": \"USD\",\n  \"paymentPurpose\": \"PLATFORM_SUPPORT\",\n  \"description\": \"International platform support\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/payments/initiate",
+              "raw": "{{baseUrl}}/payments/{{paymentId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "payments",
-                "initiate"
+                "{{paymentId}}"
               ]
             },
-            "description": "Initiates a Stripe Checkout session in USD."
+            "description": "Retrieves single payment details by ID."
           }
         },
         {
-          "name": "Get My Payments",
+          "name": "Get My Payment History",
           "request": {
             "method": "GET",
             "header": [
@@ -3827,169 +3812,278 @@
                   "value": "10"
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Get Payment Details",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "payments",
-                "{{paymentId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Verify Payment Status",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}/verify",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "payments",
-                "{{paymentId}}",
-                "verify"
-              ]
-            }
-          }
-        },
-        {
-          "name": "List Payment Refunds",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/payments/{{paymentId}}/refunds",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "payments",
-                "{{paymentId}}",
-                "refunds"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Admin List Payments",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/payments?page=1&limit=10",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "payments"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "10"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Admin Payment Statistics",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/payments/statistics",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "payments",
-                "statistics"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Admin Process Payment Refund",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"amount\": 250,\n  \"reason\": \"Duplicate contribution refund requested\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/refund",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "payments",
-                "{{paymentId}}",
-                "refund"
-              ]
-            }
+            "description": "Returns paginated payment history for authenticated user."
           }
+        },
+        {
+          "name": "Refunds",
+          "item": [
+            {
+              "name": "Get Payment Refunds",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/{{paymentId}}/refunds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "{{paymentId}}",
+                    "refunds"
+                  ]
+                },
+                "description": "Retrieves all refund records associated with a specific payment."
+              }
+            },
+            {
+              "name": "Get Refund Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/refunds/{{refundId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "refunds",
+                    "{{refundId}}"
+                  ]
+                },
+                "description": "Retrieves single refund record by ID for owner or administrator."
+              }
+            },
+            {
+              "name": "Admin Initiate Refund",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 250,\n  \"reason\": \"Voluntary contribution partial refund\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/payments/{{paymentId}}/refund",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payments",
+                    "{{paymentId}}",
+                    "refund"
+                  ]
+                },
+                "description": "Concurrently safe refund initiation by administrator."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "Get All Payments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/payments?page=1&limit=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payments"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Admin paginated payment search."
+              }
+            },
+            {
+              "name": "Get All Refunds",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/refunds?page=1&limit=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "refunds"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Admin paginated list of all refunds platform-wide."
+              }
+            },
+            {
+              "name": "Retry Failed Refund",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/refunds/{{refundId}}/retry",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "refunds",
+                    "{{refundId}}",
+                    "retry"
+                  ]
+                },
+                "description": "Retries a previously failed refund."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Webhooks",
+          "item": [
+            {
+              "name": "SSLCommerz IPN Documentation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/x-www-form-urlencoded"
+                  }
+                ],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    {
+                      "key": "tran_id",
+                      "value": "PB-TXN-DEMO-123",
+                      "type": "text"
+                    },
+                    {
+                      "key": "val_id",
+                      "value": "VALIDATION-REFERENCE-ID",
+                      "type": "text"
+                    },
+                    {
+                      "key": "status",
+                      "value": "VALID",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/sslcommerz/ipn",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "sslcommerz",
+                    "ipn"
+                  ]
+                },
+                "description": "Documentation and schema contract for SSLCommerz IPN (Instant Payment Notification)."
+              }
+            },
+            {
+              "name": "Stripe Webhook Documentation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "stripe-signature",
+                    "value": "t=1234567890,v1=calculated_hmac_sha256_signature",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": \"evt_sample_test_123\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {\n      \"id\": \"cs_sample_test\",\n      \"payment_status\": \"paid\"\n    }\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/stripe/webhook",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "stripe",
+                    "webhook"
+                  ]
+                },
+                "description": "Documentation for Stripe Webhook with HMAC-SHA256 signature verification."
+              }
+            }
+          ]
         }
       ]
     }

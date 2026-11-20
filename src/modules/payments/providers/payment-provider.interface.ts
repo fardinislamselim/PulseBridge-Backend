@@ -58,6 +58,7 @@ export interface ProviderRefundParams {
   };
   refundAmount: number;
   reason: string;
+  idempotencyKey?: string;
 }
 
 export interface ProviderRefundResult {

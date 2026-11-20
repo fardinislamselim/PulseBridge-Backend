@@ -59,11 +59,16 @@ import {
   getPaymentByIdController,
   getPaymentRefundsController,
   refundPaymentController,
+  getAdminRefundsController,
+  getRefundByIdController,
+  retryFailedRefundController,
 } from '../payments/payment.controller.js';
 import {
   paymentQuerySchema,
   paymentIdParamSchema,
   refundPaymentSchema,
+  refundIdParamSchema,
+  refundQuerySchema,
 } from '../payments/payment.validation.js';
 
 const router = Router();
@@ -236,6 +241,25 @@ router.post(
     body: refundPaymentSchema.shape.body,
   }),
   refundPaymentController
+);
+
+// Administrative Refund Management
+router.get(
+  '/refunds',
+  validateRequest(refundQuerySchema),
+  getAdminRefundsController
+);
+
+router.get(
+  '/refunds/:refundId',
+  validateRequest(refundIdParamSchema),
+  getRefundByIdController
+);
+
+router.post(
+  '/refunds/:refundId/retry',
+  validateRequest(refundIdParamSchema),
+  retryFailedRefundController
 );
 
 export const adminRoutes = router;

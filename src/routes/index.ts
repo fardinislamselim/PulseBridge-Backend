@@ -8,6 +8,10 @@ import { matchingRoutes } from '../modules/matching/matching.route.js';
 import { donationRoutes } from '../modules/donations/donation.route.js';
 import { paymentRoutes } from '../modules/payments/payment.route.js';
 import { adminRoutes } from '../modules/admin/admin.route.js';
+import { authenticate } from '../middlewares/auth.js';
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { getRefundByIdController } from '../modules/payments/payment.controller.js';
+import { refundIdParamSchema } from '../modules/payments/payment.validation.js';
 
 const router = Router();
 
@@ -34,6 +38,14 @@ router.use('/donations', donationRoutes);
 
 // Voluntary Platform Support & Campaign Payments
 router.use('/payments', paymentRoutes);
+
+// Single Refund Details (Owner or Admin)
+router.get(
+  '/refunds/:refundId',
+  authenticate,
+  validateRequest(refundIdParamSchema),
+  getRefundByIdController,
+);
 
 // Administration & Analytics
 router.use('/admin', adminRoutes);

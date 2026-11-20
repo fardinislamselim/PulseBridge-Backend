@@ -256,6 +256,7 @@ export class StripeProvider implements IPaymentProvider {
         headers: {
           Authorization: `Bearer ${secretKey}`,
           'Content-Type': 'application/x-www-form-urlencoded',
+          ...(params.idempotencyKey ? { 'Idempotency-Key': params.idempotencyKey } : {}),
         },
         body: payload.toString(),
       });

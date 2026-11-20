@@ -45,18 +45,48 @@ export interface PaymentQueryDTO {
 export interface RefundPaymentDTO {
   amount?: number;
   reason: string;
+  idempotencyKey?: string;
+}
+
+export interface RefundQueryDTO {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  status?: RefundStatus;
+  paymentId?: string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
 }
 
 export interface RefundRecordResponse {
   id: string;
   paymentId: string;
   amount: number;
+  currency?: string;
   reason: string | null;
   status: RefundStatus;
   providerRefundId: string | null;
   actorId: string | null;
+  idempotencyKey?: string | null;
+  requestedAt?: Date;
+  processedAt?: Date | null;
+  failedAt?: Date | null;
+  failureReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface RefundDetailResponse extends RefundRecordResponse {
+  payment?: {
+    id: string;
+    transactionId: string | null;
+    amount: number;
+    currency: string;
+    userId: string;
+  };
 }
 
 export interface PaymentDetailResponse {

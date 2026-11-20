@@ -9,6 +9,9 @@ import {
   verifyPaymentById,
   refundPayment,
   getPaymentRefunds,
+  getRefundById,
+  getAdminRefunds,
+  retryFailedRefund,
   getMyPayments,
   getAdminPayments,
   getAdminPaymentStatistics,
@@ -176,5 +179,38 @@ export const handleStripeWebhookController = asyncHandler(
 
     const result = await handleStripeWebhook(rawPayload, signature);
     return res.status(httpStatus.OK).json(result);
+  },
+);
+
+export const getRefundByIdController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const refundId = Array.isArray(req.params.refundId)
+      ? req.params.refundId[0]
+      : req.params.refundId;
+    const result = await getRefundById(refundId, req.user!);
+    return sendSuccess(res, 'Refund details retrieved successfully', result);
+  },
+);
+
+export const getAdminRefundsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await getAdminRefunds(req.query);
+    return sendSuccess(
+      res,
+      'Admin refunds retrieved successfully',
+      result.data,
+      httpStatus.OK,
+      result.meta,
+    );
+  },
+);
+
+export const retryFailedRefundController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const refundId = Array.isArray(req.params.refundId)
+      ? req.params.refundId[0]
+      : req.params.refundId;
+    const result = await retryFailedRefund(refundId, req.user!);
+    return sendSuccess(res, 'Failed refund retried successfully', result);
   },
 );

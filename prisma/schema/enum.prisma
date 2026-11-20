@@ -93,8 +93,27 @@ enum PaymentPurpose {
 
 enum RefundStatus {
   PENDING
+  PROCESSING
+  SUCCEEDED
   SUCCESS
   FAILED
+  CANCELLED
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum IdempotencyOperation {
+  PAYMENT_INITIATION
+  PAYMENT_VERIFICATION
+  WEBHOOK_PROCESSING
+  REFUND_INITIATION
+  REFUND_RECONCILIATION
 }
 
 enum NotificationType {

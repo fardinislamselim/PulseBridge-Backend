@@ -39,10 +39,16 @@ model PaymentRefund {
   id               String       @id @default(uuid())
   paymentId        String
   amount           Decimal      @db.Decimal(10, 2)
+  currency         String       @default("BDT")
   reason           String?
   status           RefundStatus @default(PENDING)
   providerRefundId String?
   actorId          String?
+  idempotencyKey   String?
+  requestedAt      DateTime     @default(now())
+  processedAt      DateTime?
+  failedAt         DateTime?
+  failureReason    String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -53,18 +59,52 @@ model PaymentRefund {
   @@index([paymentId])
   @@index([actorId])
   @@index([status])
+  @@index([idempotencyKey])
   @@map("payment_refunds")
 }
 
 model PaymentWebhookEvent {
-  id        String          @id @default(uuid())
-  eventId   String          @unique
-  provider  PaymentProvider
-  eventType String
-  payload   Json?
-  processed Boolean         @default(true)
-  createdAt DateTime        @default(now())
+  id                  String             @id @default(uuid())
+  eventId             String             @unique
+  providerEventId     String?
+  provider            PaymentProvider
+  eventType           String
+  paymentId           String?
+  status              WebhookEventStatus @default(RECEIVED)
+  payload             Json?
+  attemptCount        Int                @default(0)
+  maxAttempts         Int                @default(5)
+  nextRetryAt         DateTime?
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  failedAt            DateTime?
+  lastError           String?
+  processed           Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@index([provider])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@index([providerEventId])
   @@map("payment_webhook_events")
+}
+
+model IdempotencyRecord {
+  id             String               @id @default(uuid())
+  key            String
+  operation      IdempotencyOperation
+  actorId        String?
+  resourceId     String?
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime             @default(now())
+  expiresAt      DateTime
+
+  @@unique([key, operation])
+  @@index([key])
+  @@index([actorId])
+  @@index([expiresAt])
+  @@map("idempotency_records")
 }
