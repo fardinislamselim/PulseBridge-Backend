@@ -6,6 +6,7 @@ import { donorRoutes } from '../modules/donors/donor.route.js';
 import { bloodRequestRoutes } from '../modules/requests/request.route.js';
 import { matchingRoutes } from '../modules/matching/matching.route.js';
 import { donationRoutes } from '../modules/donations/donation.route.js';
+import { paymentRoutes } from '../modules/payments/payment.route.js';
 import { adminRoutes } from '../modules/admin/admin.route.js';
 
 const router = Router();
@@ -30,6 +31,9 @@ router.use('/matching', matchingRoutes);
 
 // Donation Management, History & Verification
 router.use('/donations', donationRoutes);
+
+// Voluntary Platform Support & Campaign Payments
+router.use('/payments', paymentRoutes);
 
 // Administration & Analytics
 router.use('/admin', adminRoutes);

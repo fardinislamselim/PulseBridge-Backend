@@ -70,16 +70,31 @@ enum DonationVerificationStatus {
 
 enum PaymentStatus {
   PENDING
+  PROCESSING
   PAID
+  SUCCESS
   FAILED
   CANCELLED
-  REFUNDED
+  REFUND_PENDING
   PARTIALLY_REFUNDED
+  REFUNDED
 }
 
 enum PaymentProvider {
   SSLCOMMERZ
   STRIPE
+}
+
+enum PaymentPurpose {
+  PLATFORM_SUPPORT
+  CAMPAIGN_DONATION
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }
 
 enum NotificationType {

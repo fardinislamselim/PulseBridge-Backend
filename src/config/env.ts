@@ -56,6 +56,31 @@ export const envSchema = z.object({
     .optional()
     .default('pulsebridge-default-otp-hash-secret-change-in-production'),
   PASSWORD_RESET_TOKEN_EXPIRES_IN: coerceNumber(600),
+
+  // Payment Configuration
+  PAYMENT_DEFAULT_PROVIDER: z.enum(['SSLCOMMERZ', 'STRIPE']).default('SSLCOMMERZ'),
+  PAYMENT_MIN_AMOUNT: coerceNumber(10),
+  PAYMENT_MAX_AMOUNT: coerceNumber(500000),
+  PAYMENT_PENDING_TIMEOUT_MINUTES: coerceNumber(60),
+  PAYMENT_RECONCILIATION_INTERVAL_MINUTES: coerceNumber(15),
+
+  // SSLCommerz
+  SSLCOMMERZ_STORE_ID: z.string().optional().default(''),
+  SSLCOMMERZ_STORE_PASSWORD: z.string().optional().default(''),
+  SSLCOMMERZ_IS_LIVE: z
+    .preprocess((val) => val === 'true' || val === true, z.boolean())
+    .default(false),
+  SSLCOMMERZ_SUCCESS_URL: z.string().optional().default(''),
+  SSLCOMMERZ_FAIL_URL: z.string().optional().default(''),
+  SSLCOMMERZ_CANCEL_URL: z.string().optional().default(''),
+  SSLCOMMERZ_IPN_URL: z.string().optional().default(''),
+
+  // Stripe
+  STRIPE_SECRET_KEY: z.string().optional().default(''),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional().default(''),
+  STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
+  STRIPE_SUCCESS_URL: z.string().optional().default(''),
+  STRIPE_CANCEL_URL: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -15,6 +15,7 @@ model User {
   donorProfile            DonorProfile?
   bloodRequests           BloodRequest[]
   payments                Payment[]
+  adminRefunds            PaymentRefund[]       @relation("AdminRefunds")
   notifications           Notification[]
   auditLogs               AuditLog[]
   requestHistories        BloodRequestHistory[]

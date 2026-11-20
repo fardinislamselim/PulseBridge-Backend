@@ -53,6 +53,18 @@ import {
   updateUrgencySchema,
   expireBloodRequestSchema,
 } from '../requests/request.validation.js';
+import {
+  getAdminPaymentsController,
+  getAdminPaymentStatisticsController,
+  getPaymentByIdController,
+  getPaymentRefundsController,
+  refundPaymentController,
+} from '../payments/payment.controller.js';
+import {
+  paymentQuerySchema,
+  paymentIdParamSchema,
+  refundPaymentSchema,
+} from '../payments/payment.validation.js';
 
 const router = Router();
 
@@ -191,6 +203,39 @@ router.patch(
     body: expireBloodRequestSchema,
   }),
   expireBloodRequestController
+);
+
+// Administrative Payment Management
+router.get(
+  '/payments/statistics',
+  getAdminPaymentStatisticsController
+);
+
+router.get(
+  '/payments',
+  validateRequest(paymentQuerySchema),
+  getAdminPaymentsController
+);
+
+router.get(
+  '/payments/:paymentId',
+  validateRequest(paymentIdParamSchema),
+  getPaymentByIdController
+);
+
+router.get(
+  '/payments/:paymentId/refunds',
+  validateRequest(paymentIdParamSchema),
+  getPaymentRefundsController
+);
+
+router.post(
+  '/payments/:paymentId/refund',
+  validateRequest({
+    params: paymentIdParamSchema.shape.params,
+    body: refundPaymentSchema.shape.body,
+  }),
+  refundPaymentController
 );
 
 export const adminRoutes = router;

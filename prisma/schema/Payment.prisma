@@ -1,24 +1,70 @@
 model Payment {
-  id               String          @id @default(uuid())
-  userId           String
-  bloodRequestId   String?
-  amount           Decimal         @db.Decimal(10, 2)
-  currency         String          @default("BDT")
-  provider         PaymentProvider
-  status           PaymentStatus   @default(PENDING)
-  transactionId    String?         @unique
-  paymentSessionId String?
-  refundAmount     Decimal?        @db.Decimal(10, 2)
-  paidAt           DateTime?
-  refundedAt       DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                    String          @id @default(uuid())
+  userId                String
+  bloodRequestId        String?
+  paymentPurpose        PaymentPurpose  @default(PLATFORM_SUPPORT)
+  amount                Decimal         @db.Decimal(10, 2)
+  currency              String          @default("BDT")
+  provider              PaymentProvider
+  status                PaymentStatus   @default(PENDING)
+  transactionId         String?         @unique
+  providerTransactionId String?
+  paymentSessionId      String?
+  paymentUrl            String?
+  description           String?
+  metadata              Json?
+  refundAmount          Decimal?        @db.Decimal(10, 2)
+  paidAt                DateTime?
+  failedAt              DateTime?
+  cancelledAt           DateTime?
+  refundedAt            DateTime?
+  failedReason          String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   // Relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  bloodRequest BloodRequest? @relation(fields: [bloodRequestId], references: [id], onDelete: SetNull)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  bloodRequest BloodRequest?   @relation(fields: [bloodRequestId], references: [id], onDelete: SetNull)
+  refunds      PaymentRefund[]
 
   @@index([userId])
   @@index([status])
+  @@index([provider])
+  @@index([providerTransactionId])
+  @@index([createdAt])
   @@map("payments")
+}
+
+model PaymentRefund {
+  id               String       @id @default(uuid())
+  paymentId        String
+  amount           Decimal      @db.Decimal(10, 2)
+  reason           String?
+  status           RefundStatus @default(PENDING)
+  providerRefundId String?
+  actorId          String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relations
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  actor   User?   @relation("AdminRefunds", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([actorId])
+  @@index([status])
+  @@map("payment_refunds")
+}
+
+model PaymentWebhookEvent {
+  id        String          @id @default(uuid())
+  eventId   String          @unique
+  provider  PaymentProvider
+  eventType String
+  payload   Json?
+  processed Boolean         @default(true)
+  createdAt DateTime        @default(now())
+
+  @@index([provider])
+  @@map("payment_webhook_events")
 }

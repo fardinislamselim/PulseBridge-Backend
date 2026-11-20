@@ -9,6 +9,10 @@ import {
   startBloodRequestExpirationCron,
   stopBloodRequestExpirationCron,
 } from './modules/requests/request-expiration.service.js';
+import {
+  startPaymentReconciliationCron,
+  stopPaymentReconciliationCron,
+} from './modules/payments/payment-reconciliation.service.js';
 
 let server: Server | null = null;
 
@@ -26,6 +30,7 @@ export const startServer = async (): Promise<Server> => {
           redisConnected,
         });
         startBloodRequestExpirationCron();
+        startPaymentReconciliationCron();
         resolve(server!);
       });
     });
@@ -39,6 +44,7 @@ export const gracefulShutdown = async (signal: string): Promise<void> => {
   console.log(`[PulseBridge] Received ${signal}. Commencing graceful shutdown...`);
 
   stopBloodRequestExpirationCron();
+  stopPaymentReconciliationCron();
 
   if (server) {
     server.close(() => {

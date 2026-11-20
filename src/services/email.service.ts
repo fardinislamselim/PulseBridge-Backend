@@ -284,6 +284,32 @@ export const sendPaymentFailedEmail = async (
   });
 };
 
+export interface PaymentRefundData {
+  name: string;
+  invoiceId: string;
+  amount: string;
+  totalRefunded?: string;
+  reason?: string;
+  status?: string;
+  date: string;
+}
+
+export const sendPaymentRefundEmail = async (
+  email: string,
+  details: PaymentRefundData
+): Promise<boolean> => {
+  const subject = `Payment Refund Notice: Invoice #${details.invoiceId} - PulseBridge`;
+  return sendTemplateEmail({
+    to: email,
+    subject,
+    template: 'payment-refund',
+    data: {
+      ...details,
+      subject,
+    },
+  });
+};
+
 export interface AccountStatusData {
   name: string;
   status: 'ACTIVE' | 'VERIFIED' | 'BLOCKED' | 'SUSPENDED';
