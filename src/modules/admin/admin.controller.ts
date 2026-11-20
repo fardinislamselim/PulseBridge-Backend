@@ -23,18 +23,16 @@ import {
 /**
  * Legacy Dashboard endpoint (for backward compatibility).
  */
-export const getAdminDashboardController = asyncHandler(async (req: Request, res: Response) => {
-  const refresh = req.query.refresh === 'true';
-  const stats = await getAdminDashboard(refresh);
+export const getAdminDashboardController = asyncHandler(async (_req: Request, res: Response) => {
+  const stats = await getAdminDashboard();
   return sendSuccess(res, 'Admin dashboard metrics retrieved successfully', stats);
 });
 
 /**
  * Comprehensive Dashboard Overview.
  */
-export const getDashboardOverviewController = asyncHandler(async (req: Request, res: Response) => {
-  const refresh = req.query.refresh === 'true';
-  const overview = await getAdminDashboardOverview(refresh);
+export const getDashboardOverviewController = asyncHandler(async (_req: Request, res: Response) => {
+  const overview = await getAdminDashboardOverview();
   return sendSuccess(res, 'Dashboard overview retrieved successfully', overview);
 });
 

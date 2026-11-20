@@ -17,23 +17,12 @@ import type {
   GetAuditLogsQueryDTO,
 } from './admin.interface.js';
 import type { PaginatedResult } from '../users/user.interface.js';
-import { getCache, setCache } from '../../infrastructure/cache/cache.service.js';
 import { isDonationCooldownActive } from '../donors/donor.utils.js';
-
-const DASHBOARD_OVERVIEW_CACHE_KEY = 'pulsebridge:v1:admin:dashboard:overview';
-const DASHBOARD_CACHE_TTL = 300; // 5 minutes
 
 /**
  * Computes the complete administrative dashboard overview with multi-domain aggregations.
  */
-export const getAdminDashboardOverview = async (
-  forceRefresh: boolean = false
-): Promise<DashboardOverviewDTO> => {
-  if (!forceRefresh) {
-    const cached = await getCache<DashboardOverviewDTO>(DASHBOARD_OVERVIEW_CACHE_KEY);
-    if (cached) return cached;
-  }
-
+export const getAdminDashboardOverview = async (): Promise<DashboardOverviewDTO> => {
   const now = new Date();
   const startOfToday = new Date(now);
   startOfToday.setUTCHours(0, 0, 0, 0);
@@ -348,16 +337,15 @@ export const getAdminDashboardOverview = async (
     },
   };
 
-  void setCache(DASHBOARD_OVERVIEW_CACHE_KEY, overview, DASHBOARD_CACHE_TTL);
   return overview;
 };
 
 /**
  * Backward-compatible admin dashboard stats method.
  */
-export const getAdminDashboard = async (forceRefresh: boolean = false): Promise<DashboardStats> => {
+export const getAdminDashboard = async (): Promise<DashboardStats> => {
   const [overview, recentAuditLogs] = await Promise.all([
-    getAdminDashboardOverview(forceRefresh),
+    getAdminDashboardOverview(),
     prisma.auditLog.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },

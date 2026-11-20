@@ -31,10 +31,7 @@ import {
   generateDateBuckets,
   formatUtcDateKey,
 } from './admin.utils.js';
-import { getCache, setCache } from '../../infrastructure/cache/cache.service.js';
 import { isDonationCooldownActive } from '../donors/donor.utils.js';
-
-const ANALYTICS_CACHE_TTL = 300; // 5 minutes
 
 // ----------------------------------------------------
 // 1. User Analytics
@@ -44,16 +41,9 @@ export const getUserAnalytics = async (query: {
   startDate?: string;
   endDate?: string;
   interval?: 'day' | 'week' | 'month';
-  refresh?: boolean;
 }): Promise<UserAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
   const interval = query.interval || 'day';
-  const cacheKey = `pulsebridge:v1:admin:analytics:users:${period}:${start.toISOString()}:${end.toISOString()}:${interval}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<UserAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const now = new Date();
   const startOfToday = new Date(now);
@@ -146,7 +136,7 @@ export const getUserAnalytics = async (query: {
       count: d._count.id,
     }));
 
-  const result: UserAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -170,9 +160,6 @@ export const getUserAnalytics = async (query: {
     statusDistribution,
     districtDistribution,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -182,16 +169,8 @@ export const getDonorAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<DonorAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:donors:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<DonorAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
-
   const now = new Date();
 
   const [
@@ -304,7 +283,7 @@ export const getDonorAnalytics = async (query: {
     count: d.count,
   }));
 
-  const result: DonorAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -324,9 +303,6 @@ export const getDonorAnalytics = async (query: {
     newDonorsTrend,
     topDistricts,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -338,15 +314,8 @@ export const getBloodRequestAnalytics = async (query: {
   endDate?: string;
   district?: string;
   bloodGroup?: BloodGroup;
-  refresh?: boolean;
 }): Promise<BloodRequestAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:blood-requests:${period}:${start.toISOString()}:${end.toISOString()}:${query.district || ''}:${query.bloodGroup || ''}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<BloodRequestAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const now = new Date();
   const startOfToday = new Date(now);
@@ -498,7 +467,7 @@ export const getBloodRequestAnalytics = async (query: {
       count: d._count.id,
     }));
 
-  const result: BloodRequestAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -531,9 +500,6 @@ export const getBloodRequestAnalytics = async (query: {
         fulfilledCountForAvg > 0 ? Number((totalFulfillHours / fulfilledCountForAvg).toFixed(2)) : null,
     },
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -545,15 +511,8 @@ export const getDonationAnalytics = async (query: {
   endDate?: string;
   district?: string;
   bloodGroup?: BloodGroup;
-  refresh?: boolean;
 }): Promise<DonationAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:donations:${period}:${start.toISOString()}:${end.toISOString()}:${query.district || ''}:${query.bloodGroup || ''}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<DonationAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const now = new Date();
   const startOfToday = new Date(now);
@@ -701,7 +660,7 @@ export const getDonationAnalytics = async (query: {
     count: d._count.id,
   }));
 
-  const result: DonationAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -728,9 +687,6 @@ export const getDonationAnalytics = async (query: {
     ],
     topDonors,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -740,15 +696,8 @@ export const getAssignmentAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<AssignmentAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:assignments:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<AssignmentAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const [
     totalAssignments,
@@ -807,7 +756,7 @@ export const getAssignmentAnalytics = async (query: {
   const completionRate = calculatePercentage(completedAssignments, totalAssignments);
   const matchingSuccessRate = acceptanceRate;
 
-  const result: AssignmentAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -833,9 +782,6 @@ export const getAssignmentAnalytics = async (query: {
         completeCountForAvg > 0 ? Number((totalCompleteHours / completeCountForAvg).toFixed(2)) : null,
     },
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -845,15 +791,8 @@ export const getEmergencyAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<EmergencyAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:emergency:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<EmergencyAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const [
     totalEmergencyRequests,
@@ -974,7 +913,7 @@ export const getEmergencyAnalytics = async (query: {
       count: d._count.id,
     }));
 
-  const result: EmergencyAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -1007,9 +946,6 @@ export const getEmergencyAnalytics = async (query: {
     },
     requiresAttentionCount: pendingEmergencyApprovals + activeEmergencyRequests,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -1019,15 +955,8 @@ export const getPaymentAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<PaymentAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:payments:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<PaymentAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const [
     totalTransactions,
@@ -1132,7 +1061,7 @@ export const getPaymentAnalytics = async (query: {
     net: Number(d.net.toFixed(2)),
   }));
 
-  const result: PaymentAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -1172,9 +1101,6 @@ export const getPaymentAnalytics = async (query: {
     byCurrency,
     timelineTrend,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -1184,15 +1110,8 @@ export const getNotificationAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<NotificationAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
-  const cacheKey = `pulsebridge:v1:admin:analytics:notifications:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<NotificationAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const [
     totalNotifications,
@@ -1253,7 +1172,7 @@ export const getNotificationAnalytics = async (query: {
     count,
   }));
 
-  const result: NotificationAnalyticsDTO = {
+  return {
     period,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
@@ -1272,9 +1191,6 @@ export const getNotificationAnalytics = async (query: {
     },
     timelineTrend,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
 
 // ----------------------------------------------------
@@ -1284,16 +1200,9 @@ export const getGrowthAnalytics = async (query: {
   period?: string;
   startDate?: string;
   endDate?: string;
-  refresh?: boolean;
 }): Promise<GrowthAnalyticsDTO> => {
   const { start, end, period } = parseDateRange(query);
   const { prevStart, prevEnd } = getPreviousPeriod(start, end);
-  const cacheKey = `pulsebridge:v1:admin:analytics:growth:${period}:${start.toISOString()}:${end.toISOString()}`;
-
-  if (!query.refresh) {
-    const cached = await getCache<GrowthAnalyticsDTO>(cacheKey);
-    if (cached) return cached;
-  }
 
   const [
     // Current period
@@ -1375,7 +1284,7 @@ export const getGrowthAnalytics = async (query: {
     });
   }
 
-  const result: GrowthAnalyticsDTO = {
+  return {
     periods: {
       currentPeriod: { start: start.toISOString(), end: end.toISOString() },
       previousPeriod: { start: prevStart.toISOString(), end: prevEnd.toISOString() },
@@ -1414,7 +1323,4 @@ export const getGrowthAnalytics = async (query: {
     },
     monthlyPlatformActivity,
   };
-
-  void setCache(cacheKey, result, ANALYTICS_CACHE_TTL);
-  return result;
 };
