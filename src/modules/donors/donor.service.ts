@@ -203,53 +203,81 @@ export const checkDonorEligibility = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Donor profile not found');
   }
 
+  const cooldown = calculateCooldown(donor.lastDonationDate, DONATION_COOLDOWN_DAYS);
+  const cooldownEndsAt = cooldown.eligibleAt;
+  const remainingCooldownDays = cooldown.daysRemaining;
+
   // 1. Account status check
   if (donor.user.status === UserStatus.BLOCKED || donor.user.status === UserStatus.DELETED) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.ACCOUNT_BLOCKED,
+      reasons: [ELIGIBILITY_REASONS.ACCOUNT_BLOCKED],
       message: 'Donor account is currently suspended, blocked, or inactive',
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 2. Email verification check
   if (!donor.user.emailVerified) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.ACCOUNT_NOT_VERIFIED,
+      reasons: [ELIGIBILITY_REASONS.ACCOUNT_NOT_VERIFIED],
       message: 'Donor email address is not verified',
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 3. Medical restrictions check
   if (donor.hasMedicalRestriction) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.MEDICAL_RESTRICTION,
+      reasons: [ELIGIBILITY_REASONS.MEDICAL_RESTRICTION],
       message:
         donor.medicalRestrictionReason ||
         'Donor is currently under a temporary or permanent medical restriction',
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 4. Blood group check
   if (!donor.bloodGroup) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.BLOOD_GROUP_MISSING,
+      reasons: [ELIGIBILITY_REASONS.BLOOD_GROUP_MISSING],
       message: 'Blood group is not set in donor profile',
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
@@ -260,43 +288,60 @@ export const checkDonorEligibility = async (
     if (!donor.city) missing.push('city');
 
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.PROFILE_INCOMPLETE,
+      reasons: [ELIGIBILITY_REASONS.PROFILE_INCOMPLETE],
       message: 'Donor profile is incomplete. District and city are required.',
       details: { missingFields: missing },
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 6. Availability check
   if (!donor.isAvailable) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: false,
       reason: ELIGIBILITY_REASONS.DONOR_UNAVAILABLE,
+      reasons: [ELIGIBILITY_REASONS.DONOR_UNAVAILABLE],
       message: 'Donor is currently marked as unavailable',
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 7. Active assignment check
   if (donor.assignments.length > 0) {
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.ACTIVE_ASSIGNMENT_EXISTS,
+      reasons: [ELIGIBILITY_REASONS.ACTIVE_ASSIGNMENT_EXISTS],
       message: 'Donor already has an active blood donation assignment in progress',
       details: { activeAssignmentId: donor.assignments[0].id },
       lastDonationDate: donor.lastDonationDate,
-      eligibleAt: donor.eligibleAt,
+      eligibleAt: cooldownEndsAt,
+      cooldownEndsAt,
+      daysRemaining: remainingCooldownDays,
+      remainingCooldownDays,
     };
   }
 
   // 8. 90-day cooldown check
-  const cooldown = calculateCooldown(donor.lastDonationDate, DONATION_COOLDOWN_DAYS);
   if (cooldown.isCooldownActive) {
     // Keep eligibleAt synchronized in DB if needed
     if (
@@ -310,24 +355,57 @@ export const checkDonorEligibility = async (
     }
 
     return {
+      eligible: false,
       isEligible: false,
       canDonate: false,
+      isAvailable: donor.isAvailable,
       reason: ELIGIBILITY_REASONS.DONATION_COOLDOWN_ACTIVE,
+      reasons: [ELIGIBILITY_REASONS.DONATION_COOLDOWN_ACTIVE],
       message: `Donor is in donation cooldown. Eligible in ${cooldown.daysRemaining} day(s).`,
       daysRemaining: cooldown.daysRemaining,
+      remainingCooldownDays: cooldown.daysRemaining,
       eligibleAt: cooldown.eligibleAt,
+      cooldownEndsAt: cooldown.eligibleAt,
       lastDonationDate: donor.lastDonationDate,
       details: { cooldownDays: DONATION_COOLDOWN_DAYS },
     };
   }
 
   return {
+    eligible: true,
     isEligible: true,
     canDonate: true,
+    isAvailable: donor.isAvailable,
+    reasons: [],
     message: 'Donor is eligible to donate blood',
     daysRemaining: 0,
+    remainingCooldownDays: 0,
     eligibleAt: cooldown.eligibleAt,
+    cooldownEndsAt: cooldown.eligibleAt,
     lastDonationDate: donor.lastDonationDate,
+  };
+};
+
+/**
+ * Retrieves donor eligibility with optional privacy filtering.
+ * Non-privileged consumers receive a sanitized summary with no private medical notes.
+ */
+export const getDonorEligibilityById = async (
+  donorId: string,
+  isPrivileged: boolean = false,
+) => {
+  const result = await checkDonorEligibility(donorId);
+  if (isPrivileged) {
+    return result;
+  }
+
+  return {
+    eligible: result.eligible,
+    isAvailable: result.isAvailable,
+    lastDonationDate: result.lastDonationDate,
+    cooldownEndsAt: result.cooldownEndsAt,
+    remainingCooldownDays: result.remainingCooldownDays,
+    reasons: result.reasons,
   };
 };
 

@@ -54,9 +54,18 @@ enum AssignmentStatus {
 }
 
 enum DonationStatus {
+  PENDING
   SCHEDULED
   COMPLETED
+  CANCELLED
+  REJECTED
   FAILED
+}
+
+enum DonationVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 enum PaymentStatus {

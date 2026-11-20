@@ -28,6 +28,66 @@ export {
 };
 
 /**
+ * Calculates the exact UTC expiration timestamp of the 90-day cooldown period.
+ * Uses UTC calendar date arithmetic to prevent local timezone / DST offset discrepancies.
+ */
+export const calculateCooldownEndsAt = (
+  lastDonationDate: Date | string,
+  cooldownDays: number = DONATION_COOLDOWN_DAYS,
+): Date => {
+  const d = new Date(lastDonationDate);
+  d.setUTCDate(d.getUTCDate() + cooldownDays);
+  return d;
+};
+
+/**
+ * Returns true if the donor's 90-day cooldown period is currently active.
+ */
+export const isDonationCooldownActive = (
+  lastDonationDate: Date | string | null | undefined,
+  currentDate: Date = new Date(),
+): boolean => {
+  if (!lastDonationDate) return false;
+  const endsAt = calculateCooldownEndsAt(new Date(lastDonationDate));
+  return currentDate.getTime() < endsAt.getTime();
+};
+
+/**
+ * Comprehensive cooldown status helper.
+ */
+export const getDonationCooldownStatus = (
+  lastDonationDate: Date | string | null | undefined,
+  currentDate: Date = new Date(),
+): {
+  isActive: boolean;
+  lastDonationDate: Date | null;
+  cooldownEndsAt: Date | null;
+  remainingDays: number;
+} => {
+  if (!lastDonationDate) {
+    return {
+      isActive: false,
+      lastDonationDate: null,
+      cooldownEndsAt: null,
+      remainingDays: 0,
+    };
+  }
+
+  const lastDate = new Date(lastDonationDate);
+  const cooldownEndsAt = calculateCooldownEndsAt(lastDate);
+  const diffMs = cooldownEndsAt.getTime() - currentDate.getTime();
+  const isActive = diffMs > 0;
+  const remainingDays = isActive ? Math.ceil(diffMs / (24 * 60 * 60 * 1000)) : 0;
+
+  return {
+    isActive,
+    lastDonationDate: lastDate,
+    cooldownEndsAt,
+    remainingDays,
+  };
+};
+
+/**
  * Calculates remaining cooldown and eligible date from a given last donation date.
  */
 export const calculateCooldown = (
@@ -46,24 +106,11 @@ export const calculateCooldown = (
     };
   }
 
-  const lastDate = new Date(lastDonationDate);
-  const eligibleDate = new Date(lastDate.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
-  const now = new Date();
-
-  const diffMs = eligibleDate.getTime() - now.getTime();
-  if (diffMs > 0) {
-    const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-    return {
-      isCooldownActive: true,
-      daysRemaining,
-      eligibleAt: eligibleDate,
-    };
-  }
-
+  const status = getDonationCooldownStatus(lastDonationDate);
   return {
-    isCooldownActive: false,
-    daysRemaining: 0,
-    eligibleAt: eligibleDate,
+    isCooldownActive: status.isActive,
+    daysRemaining: status.remainingDays,
+    eligibleAt: status.cooldownEndsAt,
   };
 };
 

@@ -21,6 +21,7 @@ import {
   getDonorByIdController,
   adminVerifyDonorController,
   adminRestrictDonorController,
+  getAdminDonorEligibilityController,
 } from '../donors/donor.controller.js';
 import {
   getDonorsQuerySchema,
@@ -28,6 +29,15 @@ import {
   adminVerifyDonorSchema,
   adminRestrictDonorSchema,
 } from '../donors/donor.validation.js';
+import {
+  getDonationsController,
+  getDonationByIdController,
+  getDonorDonationHistoryForAdminController,
+} from '../donations/donation.controller.js';
+import {
+  donationQuerySchema,
+  donationIdParamSchema,
+} from '../donations/donation.validation.js';
 import {
   getAdminBloodRequestsController,
   getAdminBloodRequestByIdController,
@@ -107,6 +117,34 @@ router.patch(
   '/donors/:donorId/restrictions',
   validateRequest(adminRestrictDonorSchema),
   adminRestrictDonorController
+);
+
+router.get(
+  '/donors/:donorId/eligibility',
+  validateRequest(donorIdParamSchema),
+  getAdminDonorEligibilityController
+);
+
+router.get(
+  '/donors/:donorId/donation-history',
+  validateRequest({
+    params: donorIdParamSchema.shape.params,
+    query: donationQuerySchema.shape.query,
+  }),
+  getDonorDonationHistoryForAdminController
+);
+
+// Administrative Donation Management
+router.get(
+  '/donations',
+  validateRequest(donationQuerySchema),
+  getDonationsController
+);
+
+router.get(
+  '/donations/:donationId',
+  validateRequest(donationIdParamSchema),
+  getDonationByIdController
 );
 
 // Administrative Blood Request Management

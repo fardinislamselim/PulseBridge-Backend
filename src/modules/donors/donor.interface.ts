@@ -148,12 +148,17 @@ export interface NearbyDonorsQueryDTO {
 }
 
 export interface DonorEligibilityResult {
+  eligible: boolean;
   isEligible: boolean;
   canDonate: boolean;
+  isAvailable?: boolean;
   reason?: EligibilityReason;
+  reasons: string[];
   message: string;
   daysRemaining?: number;
+  remainingCooldownDays: number;
   eligibleAt?: Date | null;
+  cooldownEndsAt?: Date | null;
   lastDonationDate?: Date | null;
   details?: {
     cooldownDays?: number;

@@ -6,6 +6,7 @@ import {
   updateMyDonorProfileController,
   updateMyDonorAvailabilityController,
   getDonorEligibilityController,
+  getDonorEligibilityByIdController,
   getNearbyDonorsController,
   getDonorByIdController,
   getDonorsController,
@@ -73,6 +74,14 @@ router.get(
   optionalAuth,
   validateRequest(donorIdParamSchema),
   getDonorByIdController,
+);
+
+// Individual donor eligibility (Privacy sanitized, privileged full)
+router.get(
+  '/:donorId/eligibility',
+  optionalAuth,
+  validateRequest(donorIdParamSchema),
+  getDonorEligibilityByIdController,
 );
 
 // General donor search & directory

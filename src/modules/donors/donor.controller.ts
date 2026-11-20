@@ -7,6 +7,7 @@ import {
   updateMyDonorProfile,
   updateMyDonorAvailability,
   checkDonorEligibility,
+  getDonorEligibilityById,
   getDonorById,
   getDonors,
   getNearbyDonors,
@@ -50,6 +51,38 @@ export const getDonorEligibilityController = asyncHandler(
     return sendSuccess(
       res,
       'Donor eligibility status evaluated successfully',
+      eligibility,
+    );
+  },
+);
+
+export const getDonorEligibilityByIdController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const donorId = Array.isArray(req.params.donorId)
+      ? req.params.donorId[0]
+      : req.params.donorId;
+    const isPrivileged =
+      req.user?.role === 'ADMIN' ||
+      req.user?.role === 'SUPER_ADMIN' ||
+      req.user?.id === donorId;
+    const eligibility = await getDonorEligibilityById(donorId, isPrivileged);
+    return sendSuccess(
+      res,
+      'Donor eligibility status evaluated successfully',
+      eligibility,
+    );
+  },
+);
+
+export const getAdminDonorEligibilityController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const donorId = Array.isArray(req.params.donorId)
+      ? req.params.donorId[0]
+      : req.params.donorId;
+    const eligibility = await getDonorEligibilityById(donorId, true);
+    return sendSuccess(
+      res,
+      'Administrative donor eligibility details evaluated successfully',
       eligibility,
     );
   },
