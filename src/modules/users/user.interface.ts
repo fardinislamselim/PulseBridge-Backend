@@ -18,6 +18,7 @@ export interface UserSummary {
   name: string;
   email: string;
   phone: string | null;
+  avatar?: string | null;
   role: UserRole;
   status: UserStatus;
   emailVerified: boolean;
@@ -34,6 +35,7 @@ export interface UserProfileResponse extends UserSummary {
 export interface UpdateMyProfileDTO {
   name?: string;
   phone?: string;
+  avatar?: string | null;
   bloodGroup?: BloodGroup;
   dateOfBirth?: string;
   gender?: string;

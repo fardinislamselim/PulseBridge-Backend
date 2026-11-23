@@ -21,6 +21,7 @@ const safeUserSelect = {
   name: true,
   email: true,
   phone: true,
+  avatar: true,
   role: true,
   status: true,
   emailVerified: true,
@@ -92,6 +93,7 @@ export const updateMyProfile = async (
   const userUpdateData: Prisma.UserUpdateInput = {};
   if (data.name !== undefined) userUpdateData.name = data.name.trim();
   if (data.phone !== undefined) userUpdateData.phone = data.phone ? data.phone.trim() : null;
+  if (data.avatar !== undefined) userUpdateData.avatar = data.avatar ? data.avatar.trim() : null;
 
   // Handle donor profile updates if provided
   const hasDonorData =

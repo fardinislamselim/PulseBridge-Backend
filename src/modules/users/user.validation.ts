@@ -8,6 +8,7 @@ export const updateMyProfileSchema = z.object({
     .trim()
     .regex(/^\+?[0-9]{10,15}$/, 'Please provide a valid phone number')
     .optional(),
+  avatar: z.string().trim().optional().nullable(),
   bloodGroup: z.nativeEnum(BloodGroup).optional(),
   dateOfBirth: z
     .string()
