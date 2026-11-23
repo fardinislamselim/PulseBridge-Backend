@@ -469,6 +469,9 @@ export const getDonors = async (
   if (query.isAvailable !== undefined) {
     where.isAvailable = query.isAvailable;
   }
+  if (query.isVerified !== undefined) {
+    where.isVerified = query.isVerified;
+  }
 
   // Eligibility filter
   if (query.eligible === true) {
@@ -558,6 +561,9 @@ export const getNearbyDonors = async (
   }
   if (query.isAvailable !== undefined) {
     where.isAvailable = query.isAvailable;
+  }
+  if (query.isVerified !== undefined) {
+    where.isVerified = query.isVerified;
   }
   if (query.eligible === true) {
     const now = new Date();
@@ -993,7 +999,6 @@ export const searchDonors = async (
   if (query.isAvailable !== undefined) {
     where.isAvailable = query.isAvailable;
   }
-
   if (query.isVerified !== undefined) {
     where.isVerified = query.isVerified;
   }

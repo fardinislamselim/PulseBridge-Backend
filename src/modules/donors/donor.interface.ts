@@ -132,6 +132,7 @@ export interface GetDonorsQueryDTO {
   city?: string;
   area?: string;
   isAvailable?: boolean;
+  isVerified?: boolean;
   eligible?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -143,6 +144,7 @@ export interface NearbyDonorsQueryDTO {
   radius?: number; // In kilometers, default 10
   bloodGroup?: BloodGroup;
   isAvailable?: boolean;
+  isVerified?: boolean;
   eligible?: boolean;
   limit?: number;
 }

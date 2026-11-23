@@ -42,6 +42,13 @@ export const getDonorsQuerySchema = z.object({
       }
       return val;
     }, z.boolean().optional()),
+    isVerified: z.preprocess((val) => {
+      if (typeof val === 'string') {
+        if (val.toLowerCase() === 'true') return true;
+        if (val.toLowerCase() === 'false') return false;
+      }
+      return val;
+    }, z.boolean().optional()),
     eligible: z.preprocess((val) => {
       if (typeof val === 'string') {
         if (val.toLowerCase() === 'true') return true;
@@ -73,6 +80,13 @@ export const nearbyDonorsQuerySchema = z.object({
       .default(10),
     bloodGroup: z.nativeEnum(BloodGroup).optional(),
     isAvailable: z.preprocess((val) => {
+      if (typeof val === 'string') {
+        if (val.toLowerCase() === 'true') return true;
+        if (val.toLowerCase() === 'false') return false;
+      }
+      return val;
+    }, z.boolean().optional()),
+    isVerified: z.preprocess((val) => {
       if (typeof val === 'string') {
         if (val.toLowerCase() === 'true') return true;
         if (val.toLowerCase() === 'false') return false;
