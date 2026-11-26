@@ -26,11 +26,13 @@ export const URGENCY_PRIORITY_MAP: Record<RequestUrgency, number> = {
  * PENDING
  *   ├── APPROVED
  *   ├── REJECTED
- *   └── CANCELLED
+ *   ├── CANCELLED
+ *   └── EXPIRED
  *
  * APPROVED
  *   ├── MATCHING (and IN_PROGRESS)
- *   └── CANCELLED
+ *   ├── CANCELLED
+ *   └── EXPIRED
  *
  * MATCHING / IN_PROGRESS
  *   ├── PARTIALLY_FULFILLED
@@ -51,6 +53,7 @@ export const VALID_STATUS_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = 
     RequestStatus.APPROVED,
     RequestStatus.REJECTED,
     RequestStatus.CANCELLED,
+    RequestStatus.EXPIRED,
   ],
   [RequestStatus.APPROVED]: [
     RequestStatus.MATCHING,
@@ -58,6 +61,7 @@ export const VALID_STATUS_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = 
     RequestStatus.PARTIALLY_FULFILLED,
     RequestStatus.FULFILLED,
     RequestStatus.CANCELLED,
+    RequestStatus.EXPIRED,
   ],
   [RequestStatus.MATCHING]: [
     RequestStatus.IN_PROGRESS,

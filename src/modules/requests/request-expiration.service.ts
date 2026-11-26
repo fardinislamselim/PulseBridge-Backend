@@ -241,6 +241,9 @@ export const processOverdueBloodRequests = async (): Promise<ExpirationResult> =
  * Starts the periodic background cron for expiring overdue blood requests.
  */
 export const startBloodRequestExpirationCron = (intervalMs = 60000): void => {
+  if (process.env.VERCEL === '1') {
+    return;
+  }
   if (expirationIntervalTimer) {
     clearInterval(expirationIntervalTimer);
   }

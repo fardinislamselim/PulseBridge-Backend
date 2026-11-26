@@ -115,6 +115,9 @@ export const reconcileStalePayments = async (): Promise<ReconciliationResult> =>
 export const startPaymentReconciliationCron = (
   intervalMs = env.PAYMENT_RECONCILIATION_INTERVAL_MINUTES * 60 * 1000,
 ): void => {
+  if (process.env.VERCEL === '1') {
+    return;
+  }
   if (reconciliationTimer) {
     clearInterval(reconciliationTimer);
   }
