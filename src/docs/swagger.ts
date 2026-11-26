@@ -4,53 +4,117 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import httpStatus from 'http-status';
+import { env } from '../config/env.js';
+import { defaultOpenApiSpec } from './openapi.js';
 
 const router = Router();
 
 const SWAGGER_UI_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2';
+const PRODUCTION_VERCEL_URL = 'https://pulse-bridge-backend.vercel.app';
 
-const resolveExistingPath = (candidates: string[]): string => {
+const resolveExistingPath = (candidates: string[]): string | null => {
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       return candidate;
     }
   }
-  return candidates[0];
+  return null;
 };
 
-const getOpenApiYamlPath = (): string =>
+const getOpenApiYamlPath = (): string | null =>
   resolveExistingPath([
     path.join(process.cwd(), 'docs', 'openapi.yaml'),
     path.join(process.cwd(), 'dist', 'docs', 'openapi.yaml'),
   ]);
 
-const openApiYamlPath = getOpenApiYamlPath();
 const postmanCollectionPath = path.join(
   process.cwd(),
   'postman',
   'PulseBridge.postman_collection.json'
 );
 
-let openApiDocument: Record<string, unknown>;
-try {
-  openApiDocument = YAML.load(openApiYamlPath);
-} catch {
-  openApiDocument = {};
-}
+const isValidOpenApiDoc = (doc: unknown): doc is Record<string, unknown> => {
+  if (!doc || typeof doc !== 'object') {
+    return false;
+  }
+  const record = doc as Record<string, unknown>;
+  return (
+    (typeof record.openapi === 'string' && record.openapi.trim().length > 0) ||
+    (typeof record.swagger === 'string' && record.swagger.trim().length > 0)
+  );
+};
+
+const loadOpenApiBaseDocument = (): Record<string, unknown> => {
+  const yamlPath = getOpenApiYamlPath();
+  if (yamlPath) {
+    try {
+      const parsed = YAML.load(yamlPath) as unknown;
+      if (isValidOpenApiDoc(parsed)) {
+        return parsed;
+      }
+      console.error(
+        `[Swagger] Loaded OpenAPI YAML from "${yamlPath}" is invalid or missing "openapi"/"swagger" version field. Falling back to bundled OpenAPI spec.`
+      );
+    } catch (error) {
+      console.error(
+        `[Swagger] Failed to parse OpenAPI YAML at "${yamlPath}". Falling back to bundled OpenAPI spec:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+
+  if (!isValidOpenApiDoc(defaultOpenApiSpec)) {
+    console.error('[Swagger] Bundled OpenAPI spec is invalid or missing "openapi"/"swagger" version field.');
+  }
+
+  return defaultOpenApiSpec;
+};
+
+let openApiDocument: Record<string, unknown> = loadOpenApiBaseDocument();
+
+const buildServersList = (req?: Request): Array<{ url: string; description: string }> => {
+  const isProd = process.env.VERCEL === '1' || env.NODE_ENV === 'production';
+  const localUrl = `http://localhost:${env.PORT}`;
+  const configuredBackendUrl =
+    env.BACKEND_URL && !env.BACKEND_URL.includes('localhost') ? env.BACKEND_URL : PRODUCTION_VERCEL_URL;
+
+  const requestHost = req?.get('host');
+  const requestProtocol = req?.headers['x-forwarded-proto']?.toString().split(',')[0] || req?.protocol || 'https';
+  const liveOrigin =
+    requestHost && !requestHost.includes('localhost')
+      ? `${requestProtocol}://${requestHost}`
+      : configuredBackendUrl;
+
+  if (isProd) {
+    const servers = [{ url: liveOrigin, description: 'Production Server' }];
+    if (liveOrigin !== PRODUCTION_VERCEL_URL) {
+      servers.push({ url: PRODUCTION_VERCEL_URL, description: 'Production (Vercel)' });
+    }
+    servers.push({ url: localUrl, description: 'Local Development' });
+    return servers;
+  }
+
+  return [
+    { url: localUrl, description: 'Local Development' },
+    { url: PRODUCTION_VERCEL_URL, description: 'Production (Vercel)' },
+  ];
+};
 
 /**
- * Returns latest parsed OpenAPI document from disk, ensuring live updates on reload.
+ * Returns latest parsed OpenAPI document with environment-appropriate servers.
  */
-const getOpenApiDocument = (): Record<string, unknown> => {
-  const yamlPath = getOpenApiYamlPath();
-  try {
-    if (fs.existsSync(yamlPath)) {
-      return (YAML.load(yamlPath) as Record<string, unknown>) || openApiDocument || {};
-    }
-  } catch {
-    // fallback to initial document
+const getOpenApiDocument = (req?: Request): Record<string, unknown> => {
+  const baseDoc = loadOpenApiBaseDocument();
+  openApiDocument = baseDoc;
+
+  if (!isValidOpenApiDoc(baseDoc)) {
+    console.error('[Swagger] OpenAPI document is missing a valid "openapi" or "swagger" version field.');
   }
-  return openApiDocument || {};
+
+  return {
+    ...baseDoc,
+    servers: buildServersList(req),
+  };
 };
 
 const swaggerOptions: swaggerUi.SwaggerUiOptions = {
@@ -89,33 +153,33 @@ router.get('/api-docs/postman-collection', servePostmanCollection);
 router.get('/api/docs/postman-collection', servePostmanCollection);
 
 // 2. OpenAPI JSON at /api-docs.json & /api/docs.json
-const serveOpenApiJson = (_req: Request, res: Response) => {
+const serveOpenApiJson = (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
-  return res.json(getOpenApiDocument());
+  return res.json(getOpenApiDocument(req));
 };
 router.get('/api-docs.json', serveOpenApiJson);
 router.get('/api/docs.json', serveOpenApiJson);
 
 // 3. OpenAPI YAML at /api-docs.yaml & /api/docs/openapi.yaml
-const serveOpenApiYaml = (_req: Request, res: Response) => {
+const serveOpenApiYaml = (req: Request, res: Response) => {
   const yamlPath = getOpenApiYamlPath();
   res.setHeader('Content-Type', 'text/yaml');
-  if (fs.existsSync(yamlPath)) {
+  if (yamlPath && fs.existsSync(yamlPath)) {
     const yamlContent = fs.readFileSync(yamlPath, 'utf8');
     return res.send(yamlContent);
   }
-  return res.status(httpStatus.NOT_FOUND).send('# OpenAPI specification not found');
+  return res.send(YAML.stringify(getOpenApiDocument(req), 10, 2));
 };
 router.get('/api-docs.yaml', serveOpenApiYaml);
 router.get('/api/docs/openapi.yaml', serveOpenApiYaml);
 
 // 4. Swagger UI at /api-docs and /api/docs (live document reloaded)
 router.use('/api-docs', swaggerUi.serve, (req: Request, res: Response, next: NextFunction) => {
-  const doc = getOpenApiDocument();
+  const doc = getOpenApiDocument(req);
   swaggerUi.setup(doc, swaggerOptions)(req, res, next);
 });
 router.use('/api/docs', swaggerUi.serve, (req: Request, res: Response, next: NextFunction) => {
-  const doc = getOpenApiDocument();
+  const doc = getOpenApiDocument(req);
   swaggerUi.setup(doc, swaggerOptions)(req, res, next);
 });
 
