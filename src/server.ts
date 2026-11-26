@@ -62,20 +62,25 @@ export const gracefulShutdown = async (signal: string): Promise<void> => {
   }
 };
 
-process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
+if (process.env.VERCEL !== '1') {
+  process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
-process.on('uncaughtException', (error) => {
-  console.error('[PulseBridge] Uncaught Exception:', error);
-  void gracefulShutdown('uncaughtException');
-});
+  process.on('uncaughtException', (error) => {
+    console.error('[PulseBridge] Uncaught Exception:', error);
+    void gracefulShutdown('uncaughtException');
+  });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('[PulseBridge] Unhandled Rejection:', reason);
-  void gracefulShutdown('unhandledRejection');
-});
+  process.on('unhandledRejection', (reason) => {
+    console.error('[PulseBridge] Unhandled Rejection:', reason);
+    void gracefulShutdown('unhandledRejection');
+  });
 
-// Auto-start only when executed as the main script
-if (process.env.NODE_ENV !== 'test') {
-  void startServer();
+  // Auto-start only when executed as the main script outside test & Vercel serverless
+  if (process.env.NODE_ENV !== 'test') {
+    void startServer();
+  }
 }
+
+export { app };
+export default app;
