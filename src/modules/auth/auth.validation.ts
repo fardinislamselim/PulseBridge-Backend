@@ -54,7 +54,10 @@ export const registerSchema = z
         message: 'Public registration allows only DONOR or REQUESTER roles',
       })
       .default('REQUESTER'),
-    bloodGroup: bloodGroupSchema.optional(),
+    bloodGroup: z.preprocess(
+      (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val === null ? undefined : val),
+      bloodGroupSchema.optional(),
+    ),
     district: z.string().trim().min(2, 'District must be at least 2 characters').optional(),
     city: z.string().trim().min(2, 'City must be at least 2 characters').optional(),
     address: z.string().trim().min(3, 'Address must be at least 3 characters').optional(),
