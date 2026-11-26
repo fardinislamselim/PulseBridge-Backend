@@ -7,8 +7,25 @@ import httpStatus from 'http-status';
 
 const router = Router();
 
-const openApiYamlPath = path.resolve(process.cwd(), 'docs', 'openapi.yaml');
-const postmanCollectionPath = path.resolve(
+const SWAGGER_UI_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2';
+
+const resolveExistingPath = (candidates: string[]): string => {
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
+};
+
+const getOpenApiYamlPath = (): string =>
+  resolveExistingPath([
+    path.join(process.cwd(), 'docs', 'openapi.yaml'),
+    path.join(process.cwd(), 'dist', 'docs', 'openapi.yaml'),
+  ]);
+
+const openApiYamlPath = getOpenApiYamlPath();
+const postmanCollectionPath = path.join(
   process.cwd(),
   'postman',
   'PulseBridge.postman_collection.json'
@@ -25,9 +42,10 @@ try {
  * Returns latest parsed OpenAPI document from disk, ensuring live updates on reload.
  */
 const getOpenApiDocument = (): Record<string, unknown> => {
+  const yamlPath = getOpenApiYamlPath();
   try {
-    if (fs.existsSync(openApiYamlPath)) {
-      return (YAML.load(openApiYamlPath) as Record<string, unknown>) || openApiDocument || {};
+    if (fs.existsSync(yamlPath)) {
+      return (YAML.load(yamlPath) as Record<string, unknown>) || openApiDocument || {};
     }
   } catch {
     // fallback to initial document
@@ -37,6 +55,11 @@ const getOpenApiDocument = (): Record<string, unknown> => {
 
 const swaggerOptions: swaggerUi.SwaggerUiOptions = {
   customSiteTitle: 'PulseBridge API Documentation',
+  customCssUrl: `${SWAGGER_UI_CDN_BASE}/swagger-ui.min.css`,
+  customJs: [
+    `${SWAGGER_UI_CDN_BASE}/swagger-ui-bundle.min.js`,
+    `${SWAGGER_UI_CDN_BASE}/swagger-ui-standalone-preset.min.js`,
+  ],
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
@@ -75,9 +98,10 @@ router.get('/api/docs.json', serveOpenApiJson);
 
 // 3. OpenAPI YAML at /api-docs.yaml & /api/docs/openapi.yaml
 const serveOpenApiYaml = (_req: Request, res: Response) => {
+  const yamlPath = getOpenApiYamlPath();
   res.setHeader('Content-Type', 'text/yaml');
-  if (fs.existsSync(openApiYamlPath)) {
-    const yamlContent = fs.readFileSync(openApiYamlPath, 'utf8');
+  if (fs.existsSync(yamlPath)) {
+    const yamlContent = fs.readFileSync(yamlPath, 'utf8');
     return res.send(yamlContent);
   }
   return res.status(httpStatus.NOT_FOUND).send('# OpenAPI specification not found');
