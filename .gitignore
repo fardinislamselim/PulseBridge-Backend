@@ -162,7 +162,7 @@ Agent.md
 # Prisma generated client
 generated/
 
-docs/
+/docs/
 tests/
 
 frontend/
