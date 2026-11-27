@@ -30,7 +30,7 @@ export const seedDatabase = async (): Promise<void> => {
       process.env.SEED_ADMIN_PASSWORD ||
       env.SEED_ADMIN_PASSWORD ||
       config.admin_password ||
-      'AdminPassword123!';
+      'AdminSecurePassword123!';
     const defaultAdminPasswordHash = await hashPassword(seedAdminPassword);
     const superAdminPasswordHash = await hashPassword(config.admin_password || seedAdminPassword);
     const demoUserPasswordHash = await hashPassword('DemoPassword123!');
